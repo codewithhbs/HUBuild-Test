@@ -1002,6 +1002,7 @@ const ChatDemo = () => {
                     )}
                 </div>
             </div>
+            
 
             {/* Navigation Confirmation Modal */}
             {showPrompt && (
