@@ -271,7 +271,7 @@ function Dashboard() {
 
   if (loading || !myProfile) {
     return (
-      <div className="d-flex justify-content-center align-items-center min-vh-100">
+      <div className="forDisplayFlex justify-content-center align-items-center min-vh-100">
         <div className="spinner-border text-primary" role="status">
           <span className="visually-hidden">Loading...</span>
         </div>
@@ -288,8 +288,8 @@ function Dashboard() {
             <div className="card-body p-4">
               <div className="row align-items-center">
                 <div className="col-md-8">
-                  <div className="d-flex align-items-center">
-                    <div className="position-relative me-4">
+                  <div className="forDisplayFlex forjustify align-items-center">
+                    <div className="position-relative for-margin-right">
                       <label htmlFor="profile-upload" className="cursor-pointer">
                         <img
                           src={
@@ -325,7 +325,7 @@ function Dashboard() {
                       )}
                     </div>
                     <div>
-                      <h3 className="mb-1 text-dark fw-bold">{myProfile.name}</h3>
+                      <h3 className="mb-1 text-dark fw-bold for-text-center">{myProfile.name}</h3>
                       <p className="text-muted mb-2">
                         <span className="me-2">{myProfile.email}</span>
                         <span className="mx-2">|</span>
@@ -335,8 +335,8 @@ function Dashboard() {
                   </div>
                 </div>
                 <div className="col-md-4 mt-3 mt-md-0">
-                  <div className="d-flex flex-column gap-3">
-                    <div className="d-flex align-items-center justify-content-between bg-light p-3 rounded">
+                  <div className="forDisplayFlex flex-column gap-3">
+                    <div style={{display:'flex'}} className="align-items-center justify-content-between bg-light p-3 rounded">
                       <span className="text-dark fw-medium">Available Balance:</span>
                       <span className="text-success fw-bold fs-5">₹{walletAmount}</span>
                     </div>
@@ -355,7 +355,7 @@ function Dashboard() {
               <hr className="my-4" />
               
               {/* Action Buttons */}
-              <div className="d-flex flex-wrap gap-2">
+              <div className="forDisplayFlex flex-wrap gap-2">
                 <button
                   className="btn btn-outline-danger btn-sm"
                   onClick={() => handleDeleteAccount(userId)}
@@ -404,7 +404,7 @@ function Dashboard() {
               />
             </Form.Group>
 
-            <div className="d-flex justify-content-around my-3">
+            <div className="forDisplayFlex justify-content-around my-3">
               {[100, 300, 500].map((preset) => (
                 <Button 
                   key={preset} 
@@ -420,7 +420,7 @@ function Dashboard() {
             {/* Coupon Section */}
             <Form.Group className="mb-3">
               <Form.Label>Coupon Code (Optional)</Form.Label>
-              <div className="d-flex gap-2">
+              <div className="forDisplayFlex gap-2">
                 <Form.Control
                   type="text"
                   placeholder="Enter coupon code"

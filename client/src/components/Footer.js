@@ -8,7 +8,7 @@ import axios from 'axios';
 import toast from 'react-hot-toast';
 
 const quickLinks = [
-  { to: '/member-registration', text: 'Become A Partner', key: 'partner' },
+  { to: '/member-registration', text: 'Become A Consultant', key: 'partner' },
   { to: '/about', text: 'About Us' },
   { to: '/blog', text: 'Blog' },
   { to: '/contact', text: 'Contact Us' },

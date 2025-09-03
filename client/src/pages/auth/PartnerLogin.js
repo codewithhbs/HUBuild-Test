@@ -222,7 +222,7 @@ const PartnerLogin = () => {
                                                 <div className='' style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '14px' }}>
                                                     <a className="small text-white" href="/forget-password">Forgot password?
                                                     </a>
-                                                    <Link to={'/member-registration'} style={{ backgroundColor: '#F0AF36' }} className='btn text-white'>Become a Partner</Link>
+                                                    <Link to={'/member-registration'} style={{ backgroundColor: '#F0AF36' }} className='btn text-white'>Become A Consultant</Link>
                                                 </div>
                                             </form>
                                         </div>

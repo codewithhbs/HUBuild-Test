@@ -399,7 +399,7 @@ const UserDashboard = () => {
 
   if (loading) {
     return (
-      <div className="d-flex justify-content-center align-items-center min-vh-100">
+      <div className="forDisplayFlex justify-content-center align-items-center min-vh-100">
         <div className="spinner-border text-primary" role="status">
           <span className="visually-hidden">Loading...</span>
         </div>
@@ -435,7 +435,7 @@ const UserDashboard = () => {
           <div className="card-body p-4">
             <div className="row align-items-center">
               <div className="col-md-8">
-                <div className="d-flex align-items-center">
+                <div className="forDisplayFlex forjustify align-items-center">
                   <div className="position-relative me-4">
                     <label htmlFor="profile-upload" className="cursor-pointer">
                       <img
@@ -467,19 +467,19 @@ const UserDashboard = () => {
                     )}
                   </div>
                   <div>
-                    <h3 className="mb-1 text-dark fw-bold">{myProfile.name}</h3>
-                    <p className="text-muted mb-2">
+                    <h3 className="mb-1 text-dark fw-bold for-text-center">{myProfile.name}</h3>
+                    <p className="text-muted for-text-center mb-2">
                       <span className="badge bg-primary me-2 text-light">{myProfile?.type}</span>
                       <span className="me-2">₹{myProfile.pricePerMin}/min</span>
                     </p>
-                    <div className="d-flex flex-wrap gap-2 mb-2">
+                    <div className="forDisplayFlex for-justify-center flex-wrap gap-2 mb-2">
                       {myProfile.language && myProfile.language.map((lang, index) => (
                         <span key={index} className="badge bg-light text-dark border">
                           {lang}
                         </span>
                       ))}
                     </div>
-                    <div className="d-flex flex-wrap gap-2">
+                    <div className="forDisplayFlex for-justify-center flex-wrap gap-2">
                       {myProfile.expertiseSpecialization && myProfile.expertiseSpecialization.map((spec, index) => (
                         <span key={index} className="badge bg-light text-dark border">
                           {spec}
@@ -490,9 +490,9 @@ const UserDashboard = () => {
                 </div>
               </div>
               <div className="col-md-4 mt-3 mt-md-0">
-                <div className="d-flex flex-column gap-3">
+                <div className="forDisplayFlex flex-column gap-3">
                   <a
-                    className="btn btn-primary d-flex align-items-center justify-content-center"
+                    className="btn btn-primary forDisplayFlex align-items-center justify-content-center"
                     href={`https://wa.me/?text=Join%20HelpUBuild%20and%20get%20amazing%20benefits!%20Register%20here:%20https://dessobuild.com/member-registration?ref=${myProfile?.couponCode}`}
                     target="_blank"
                     rel="noopener noreferrer"
@@ -501,7 +501,7 @@ const UserDashboard = () => {
                     <i className="fa-solid fa-share me-2"></i> Refer & Earn
                   </a>
                   
-                  <div className="d-flex align-items-center justify-content-between bg-light p-3 rounded">
+                  <div style={{display:'flex'}} className="align-items-center justify-content-between bg-light p-3 rounded">
                     <span className="text-dark fw-medium">Available Balance:</span>
                     <span className="text-success fw-bold fs-5">₹{walletAmount}</span>
                   </div>
@@ -522,7 +522,7 @@ const UserDashboard = () => {
             {/* Status Toggles */}
             <div className="row mb-3">
               <div className="col-md-6">
-                <div className="d-flex align-items-center justify-content-between p-3 bg-light rounded">
+                <div className="forDisplayFlex align-items-center justify-content-between p-3 bg-light rounded">
                   <span className="fw-medium">Chat Availability</span>
                   <div className="form-check form-switch">
                     <input
@@ -537,7 +537,7 @@ const UserDashboard = () => {
                 </div>
               </div>
               <div className="col-md-6">
-                <div className="d-flex align-items-center justify-content-between p-3 bg-light rounded">
+                <div className="forDisplayFlex align-items-center justify-content-between p-3 bg-light rounded">
                   <span className="fw-medium">Call Availability</span>
                   <div className="form-check form-switch">
                     <input
@@ -606,7 +606,7 @@ const UserDashboard = () => {
             </ul>
             
             {/* Action Buttons */}
-            <div className="d-flex flex-wrap gap-2 mt-3">
+            <div className="forDisplayFlex flex-wrap gap-2 mt-3">
               <button
                 className="btn btn-outline-danger btn-sm"
                 onClick={() => handleDeleteAccount(providerId)}
@@ -636,7 +636,7 @@ const UserDashboard = () => {
           {activeTab === "Gallery" && (
             <div className="card shadow-sm border-0">
               <div className="card-body">
-                <div className="d-flex justify-content-between align-items-center mb-4">
+                <div className="forDisplayFlex justify-content-between align-items-center mb-4">
                   <h4 className="card-title mb-0 text-primary" style={{ color: '#042F66' }}>
                     <i className="fas fa-image me-2"></i>Your Work Gallery
                   </h4>
@@ -697,7 +697,7 @@ const UserDashboard = () => {
           {activeTab === 'Portfolio' && (
             <div className="card shadow-sm border-0">
               <div className="card-body">
-                <div className="d-flex justify-content-between align-items-center mb-4">
+                <div className="forDisplayFlex justify-content-between align-items-center mb-4">
                   <h4 className="card-title mb-0 text-primary" style={{ color: '#042F66' }}>
                     <i className="fas fa-briefcase me-2"></i>My Portfolio
                   </h4>
@@ -718,7 +718,7 @@ const UserDashboard = () => {
 
                 {reUploadTrue && (
                   <>
-                    <div className="d-flex justify-content-end gap-2 mb-4">
+                    <div className="forDisplayFlex justify-content-end gap-2 mb-4">
                       <button
                         onClick={() => setReUploadTrue(false)}
                         className="btn btn-outline-secondary"
@@ -763,7 +763,7 @@ const UserDashboard = () => {
                           {files.map((file, index) => (
                             <div key={index} className="col-md-6 col-lg-4 mb-3">
                               <div className="card border-0 shadow-sm">
-                                <div className="card-body d-flex align-items-center">
+                                <div className="card-body forDisplayFlex align-items-center">
                                   <i className="fas fa-file-pdf text-danger fa-2x me-3"></i>
                                   <div className="flex-grow-1 text-truncate">
                                     <p className="mb-0 text-truncate">{file.name}</p>

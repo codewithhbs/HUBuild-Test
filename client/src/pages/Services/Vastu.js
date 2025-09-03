@@ -602,13 +602,13 @@ function Vastu() {
                       )}
                       <div className="architectur-bar">
                         <div className="recharge-btn">
-                          {role === "user" ? (
+                          {/* {role === "user" ? (
                             <a onClick={handleOpenModel} className="medium-device-recharge">
                               Recharge
                             </a>
                           ) : (
                             <></>
-                          )}
+                          )} */}
                           {/* Enhanced Filter Button */}
                           <button
                             type="button"

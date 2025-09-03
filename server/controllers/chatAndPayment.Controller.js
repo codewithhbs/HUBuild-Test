@@ -28,6 +28,7 @@ exports.createChatWithNew = async (req, res) => {
         const room = `${userId}_${providerId}`
         const check = await ChatAndPayment.findOne({ room: room })
         if (check) {
+            console.log("i am in checking",check.userChatTempDeleted, check.providerChatTempDeleted)
             if (check.userChatTempDeleted === true && check.providerChatTempDeleted === true) {
                 check.userChatTempDeleted = false;
                 check.providerChatTempDeleted = false;

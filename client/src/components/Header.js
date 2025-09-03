@@ -317,7 +317,7 @@ const Header = () => {
                       <li>
                         <a className="dropdown-item" href="/partner-login">
                           <i className="fas fa-handshake me-2"></i>
-                          Login as Partner
+                          Login as Consultant
                         </a>
                       </li>
                     </ul>

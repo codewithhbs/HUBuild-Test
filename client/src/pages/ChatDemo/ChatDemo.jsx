@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState, useCallback } from "react"
+import { IoMdArrowRoundBack } from "react-icons/io";
 import "./chat.css"
 import { MdAttachment, MdSend, MdArrowBack, MdDelete, MdSearch, MdMoreVert } from "react-icons/md"
 import ScrollToBottom from "react-scroll-to-bottom"
@@ -10,7 +11,7 @@ import toast from "react-hot-toast"
 import AccessDenied from "../../components/AccessDenied/AccessDenied"
 import { useSocket } from "../../context/SocketContext"
 import { useNavigate, useLocation } from "react-router-dom"
-import { Modal, Button } from 'react-bootstrap';
+import { Modal, Button, Spinner } from 'react-bootstrap';
 import 'bootstrap/dist/css/bootstrap.min.css';
 
 const ENDPOINT = "https://testapi.dessobuild.com/"
@@ -22,7 +23,8 @@ const ChatDemo = () => {
     const [selectedImage, setSelectedImage] = useState(null);
 
     const [isFetchingChatStatus, setIsFetchingChatStatus] = useState(false);
-
+    const [isLoadingChats, setIsLoadingChats] = useState(false);
+    const [isLoadingMessages, setIsLoadingMessages] = useState(false);
 
     const [message, setMessage] = useState("")
     const [messages, setMessages] = useState([])
@@ -143,6 +145,8 @@ const ChatDemo = () => {
             return
         }
 
+        setIsLoadingChats(true);
+
         try {
             const url =
                 userData?.role === "provider"
@@ -151,13 +155,16 @@ const ChatDemo = () => {
 
             const { data } = await axios.get(url)
             console.log("data.data", data.data)
-            const filterData = userData?.role === "provider"
-                ? data.data.filter(item => item.providerChatTempDeleted === false)
-                : data.data.filter(item => item.userChatTempDeleted === false)
+            // const filterData = userData?.role === "provider"
+            //     ? data.data.filter(item => item.providerChatTempDeleted === false)
+            //     : data.data.filter(item => item.userChatTempDeleted === false)
+            const filterData = data.data
             console.log("filterData", filterData)
             setProviderChat(filterData.reverse()) // Show latest chats first
         } catch (error) {
             toast.error("Failed to load chat history")
+        } finally {
+            setIsLoadingChats(false);
         }
     }, [userData])
 
@@ -182,6 +189,8 @@ const ChatDemo = () => {
     const handleChatStart = useCallback(
         async (chatId) => {
             if (!chatId) return;
+
+            setIsLoadingMessages(true);
 
             try {
                 const { data } = await axios.get(
@@ -210,6 +219,8 @@ const ChatDemo = () => {
                 }
             } catch (error) {
                 toast.error("Failed to load chat details");
+            } finally {
+                setIsLoadingMessages(false);
             }
         },
         [userData],
@@ -668,7 +679,10 @@ const ChatDemo = () => {
                     {(!isMobileView || showChatList) && (
                         <div className="col-md-4 chat-list-container">
                             <div className="chat-list-header">
-                                <h3>{userData?.role === "provider" ? "Clients" : "Consultants"}</h3>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start', gap: '10px' }}>
+                                    <IoMdArrowRoundBack style={{ marginBottom: '1rem', fontSize: '24px' }} onClick={() => navigate(-1)} />
+                                    <h3>{userData?.role === "provider" ? "Clients" : "Consultants"}</h3>
+                                </div>
                                 <div className="search-container">
                                     <input
                                         type="search"
@@ -682,7 +696,11 @@ const ChatDemo = () => {
                             </div>
 
                             <div className="chat-list">
-                                {filteredChats.length > 0 ? (
+                                {isLoadingChats ? (
+                                    <div className="d-flex justify-content-center align-items-center" style={{ height: '100%' }}>
+                                        <Spinner animation="border" variant="primary" />
+                                    </div>
+                                ) : filteredChats.length > 0 ? (
                                     filteredChats.map((chat, index) => (
                                         <div
                                             key={chat._id || index}
@@ -796,7 +814,7 @@ const ChatDemo = () => {
                                             ) : (
                                                 // <li>
                                                 <button className="btn btn-success" onClick={handleStartChat}>
-                                                   {chatStart ? "Chat Starting..." : "Start Chat"}
+                                                    {chatStart ? "Chat Starting..." : "Start Chat"}
                                                 </button>
                                                 // </li>
                                             )
@@ -869,47 +887,53 @@ const ChatDemo = () => {
                                         </div>
                                     </div>
 
-                                    <ScrollToBottom className="messages-container" initialScrollBehavior="smooth">
-                                        {messages.length === 0 ? (
-                                            <div className="no-messages">
-                                                <p>Send a message to start a conversation</p>
-                                            </div>
-                                        ) : (
-                                            messages.map((msg, idx) => (
-                                                <div key={idx} className={`message-wrapper ${msg.sender === id ? "outgoing" : "incoming"}`}>
-                                                    {msg.file ? (
-                                                        <div onClick={() => handleImageClick(msg.file)}
-                                                            style={{ cursor: 'pointer' }} className="message-bubble file-message">
-                                                            <a>
-                                                                <img
-                                                                    src={msg.file.content || "/placeholder.svg"}
-                                                                    alt={msg.file.name}
-                                                                    className="message-image img-thumbnail"
-                                                                    style={{ maxWidth: '200px', maxHeight: '150px' }}
-                                                                />
-                                                            </a>
-                                                            <div className="message-time">
-                                                                {new Date(msg.timestamp).toLocaleTimeString("en-US", {
-                                                                    hour: "2-digit",
-                                                                    minute: "2-digit",
-                                                                })}
-                                                            </div>
-                                                        </div>
-                                                    ) : (
-                                                        <div className="message-bubble">
-                                                            <div className="message-text">{msg.text}</div>
-                                                            <div className="message-time">
-                                                                {new Date(msg.timestamp).toLocaleTimeString("en-US", {
-                                                                    hour: "2-digit",
-                                                                    minute: "2-digit",
-                                                                })}
-                                                            </div>
-                                                        </div>
-                                                    )}
+                                    {isLoadingMessages ? (
+                                        <div style={{display:'flex'}} className="justify-content-center align-items-center" style={{ height: '100%' }}>
+                                            <Spinner animation="border" variant="primary" />
+                                        </div>
+                                    ) : (
+                                        <ScrollToBottom className="messages-container" initialScrollBehavior="smooth">
+                                            {messages.length === 0 ? (
+                                                <div className="no-messages">
+                                                    <p>Send a message to start a conversation</p>
                                                 </div>
-                                            ))
-                                        )}
-                                    </ScrollToBottom>
+                                            ) : (
+                                                messages.map((msg, idx) => (
+                                                    <div key={idx} className={`message-wrapper ${msg.sender === id ? "outgoing" : "incoming"}`}>
+                                                        {msg.file ? (
+                                                            <div onClick={() => handleImageClick(msg.file)}
+                                                                style={{ cursor: 'pointer' }} className="message-bubble file-message">
+                                                                <a>
+                                                                    <img
+                                                                        src={msg.file.content || "/placeholder.svg"}
+                                                                        alt={msg.file.name}
+                                                                        className="message-image img-thumbnail"
+                                                                        style={{ maxWidth: '200px', maxHeight: '150px' }}
+                                                                    />
+                                                                </a>
+                                                                <div className="message-time">
+                                                                    {new Date(msg.timestamp).toLocaleTimeString("en-US", {
+                                                                        hour: "2-digit",
+                                                                        minute: "2-digit",
+                                                                    })}
+                                                                </div>
+                                                            </div>
+                                                        ) : (
+                                                            <div className="message-bubble">
+                                                                <div className="message-text">{msg.text}</div>
+                                                                <div className="message-time">
+                                                                    {new Date(msg.timestamp).toLocaleTimeString("en-US", {
+                                                                        hour: "2-digit",
+                                                                        minute: "2-digit",
+                                                                    })}
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                ))
+                                            )}
+                                        </ScrollToBottom>
+                                    )}
 
                                     <Modal
                                         show={showModal}
@@ -1002,7 +1026,7 @@ const ChatDemo = () => {
                     )}
                 </div>
             </div>
-            
+
 
             {/* Navigation Confirmation Modal */}
             {showPrompt && (

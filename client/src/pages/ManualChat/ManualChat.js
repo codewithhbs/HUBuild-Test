@@ -2224,7 +2224,7 @@ const ManualChat = () => {
     return (
       <div
         className="col-md-4 chat-list-container flex-column justify-content-center align-items-center bg-light"
-        style={{ height: "80vh", textAlign: "center", display:'flex' }}
+        style={{ height: "100vh", textAlign: "center", display:'flex' }}
       >
         <div
           className="spinner-border"

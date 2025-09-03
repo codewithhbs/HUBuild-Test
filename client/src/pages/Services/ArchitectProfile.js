@@ -107,7 +107,7 @@ function ArchitectProfile() {
         if (id) {
             handleFetchProvider(id);
         }
-    }, [id, selectedCategory]);
+    }, [id]);
 
     const [formData, setFormData] = useState({
         userId: '',
@@ -260,7 +260,7 @@ function ArchitectProfile() {
             });
         }
     }
-    
+
     const handleClose = () => {
         setOpen(false)
         setTime('0')
@@ -279,7 +279,7 @@ function ArchitectProfile() {
         }
         try {
             const data = await fetchProviderData(id);
-            
+
             if (!data.success) {
                 setCallLoader(false);
                 return Swal.fire({
@@ -351,7 +351,7 @@ function ArchitectProfile() {
             </div>
         );
     }
-    
+
     if (callLoader) {
         return <CallLoader />
     }
@@ -367,9 +367,12 @@ function ArchitectProfile() {
                                 <a href="/">Home</a>
                             </li>
                             <li className="breadcrumb-item">
-                                <a href={`/${profile.slug || 'vastu'}`}>
-                                 {profile.category || 'Architects'}
-                                </a>    
+                                <a href={`/${profile.type === 'Architect' ? 'talk-to-architect' :
+                                    profile.type === 'Interior' ? 'talk-to-interior' :
+                                        profile.type === 'Vastu' ? 'Vastu' :
+                                            ''}`}>
+                                    {profile.type || 'Architects'}
+                                </a>
                             </li>
                             {/* <li className="breadcrumb-item">
   <a href={`/${profile.slug || 'Vastu'}`}>
@@ -388,22 +391,22 @@ function ArchitectProfile() {
                 <section className='architect-profile-header'>
                     <div className='container-fluid'>
                         <div className='architect-profile-card'>
-                            {profile.isHelpuBuildVerified && 
+                            {profile.isHelpuBuildVerified &&
                                 <div className="verified-badge-container">
                                     <img src={verifiedBadge} className="verified-badge-profile" alt="Verified" />
                                 </div>
                             }
-                            
+
                             <div className='architect-profile-content'>
                                 <div className='architect-profile-image-section'>
                                     <div className='architect-profile-image'>
-                                        <img 
-                                            src={profile?.photo?.imageUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(profile.name || 'User')}&background=random`} 
-                                            alt="Profile" 
+                                        <img
+                                            src={profile?.photo?.imageUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(profile.name || 'User')}&background=random`}
+                                            alt="Profile"
                                         />
                                     </div>
                                 </div>
-                                
+
                                 <div className='architect-profile-info'>
                                     <div className="profile-name-section">
                                         <h1 className='architect-name'>
@@ -412,20 +415,20 @@ function ArchitectProfile() {
                                         </h1>
                                         <span className="architect-id">ID: {profile.unique_id}</span>
                                     </div>
-                                    
+
                                     <div className="profile-details-grid">
                                         <div className="profile-detail-item">
                                             <i className="fas fa-user-tag"></i>
                                             <span>{profile.type}</span>
                                         </div>
-                                        
+
                                         {profile.experience && (
                                             <div className="profile-detail-item">
                                                 <i className="fas fa-briefcase"></i>
                                                 <span>{profile.experience} Years Experience</span>
                                             </div>
                                         )}
-                                        
+
                                         {profile.pricePerMin && (
                                             <div className="profile-detail-item highlight">
                                                 <i className="fas fa-tag"></i>
@@ -433,7 +436,7 @@ function ArchitectProfile() {
                                             </div>
                                         )}
                                     </div>
-                                    
+
                                     {profile.language && profile.language.length > 0 && (
                                         <div className="profile-languages">
                                             <h4>Languages</h4>
@@ -446,7 +449,7 @@ function ArchitectProfile() {
                                             </div>
                                         </div>
                                     )}
-                                    
+
                                     {profile.expertiseSpecialization && profile.expertiseSpecialization.length > 0 && (
                                         <div className="profile-expertise">
                                             <h4>Specializations</h4>
@@ -460,29 +463,29 @@ function ArchitectProfile() {
                                         </div>
                                     )}
                                 </div>
-                                
+
                                 <div className='architect-connect-section'>
                                     <div className="connect-buttons">
-                                        <button 
-                                            onClick={() => showModelOfPrice()} 
-                                            className={`connect-btn ${profile.callStatus ? 'btn-primary' : 'btn-disabled'}`} 
+                                        <button
+                                            onClick={() => showModelOfPrice()}
+                                            className={`connect-btn ${profile.callStatus ? 'v2CallActiveBtn' : 'v2CallDeactiveBtn'}`}
                                             disabled={!profile.callStatus}
                                         >
-                                            <i className="fas fa-phone"></i> 
+                                            <i className="fas fa-phone"></i>
                                             {profile.callStatus ? 'Call Now' : 'Not Available'}
                                         </button>
-                                        
-                                        <button 
-                                            onClick={() => handleActiveTime("Chat")} 
-                                            disabled={!profile.chatStatus} 
-                                            className={`connect-btn ${profile.chatStatus ? 'btn-secondary' : 'btn-disabled'}`}
+
+                                        <button
+                                            onClick={() => handleActiveTime("Chat")}
+                                            disabled={!profile.chatStatus}
+                                            className={`connect-btn ${profile.chatStatus ? 'v2CallActiveBtn' : 'v2CallDeactiveBtn'}`}
                                         >
-                                            <i className="fas fa-comments"></i> 
+                                            <i className="fas fa-comments"></i>
                                             {profile.chatStatus ? 'Start Chat' : 'Not Available'}
                                         </button>
                                     </div>
-                                    
-                                    <div className="availability-status">
+
+                                    {/* <div className="availability-status">
                                         <div className="status-item">
                                             <span className={`status-indicator ${profile.callStatus ? 'online' : 'offline'}`}></span>
                                             Call {profile.callStatus ? 'Available' : 'Unavailable'}
@@ -491,10 +494,10 @@ function ArchitectProfile() {
                                             <span className={`status-indicator ${profile.chatStatus ? 'online' : 'offline'}`}></span>
                                             Chat {profile.chatStatus ? 'Available' : 'Unavailable'}
                                         </div>
-                                    </div>
+                                    </div> */}
                                 </div>
                             </div>
-                            
+
                             {/* About Section */}
                             <div className='architect-about-section'>
                                 <h3>About Me</h3>
@@ -512,7 +515,7 @@ function ArchitectProfile() {
                                 <h2>Services Offered</h2>
                                 <p>Choose a category to view specialized services</p>
                             </div>
-                            
+
                             <div className="category-selector">
                                 <button
                                     onClick={() => handleCategoryChange('Residential')}
@@ -533,7 +536,7 @@ function ArchitectProfile() {
                                     Landscape
                                 </button>
                             </div>
-                            
+
                             {loading ? (
                                 <div className="services-loading">
                                     <div className="loading-spinner-small"></div>
@@ -542,7 +545,7 @@ function ArchitectProfile() {
                             ) : (
                                 <div className="services-card">
                                     <h3 className="services-category-title">{selectedCategory} Services</h3>
-                                    
+
                                     <div className="services-grid">
                                         <div className="service-item">
                                             <div className="service-icon">
@@ -551,13 +554,13 @@ function ArchitectProfile() {
                                             <div className="service-info">
                                                 <h5>Concept Design</h5>
                                                 <p className="service-price">
-                                                    {allService?.conceptDesignWithStructure 
-                                                        ? `₹${allService.conceptDesignWithStructure}/sq. ft.` 
+                                                    {allService?.conceptDesignWithStructure
+                                                        ? `₹${allService.conceptDesignWithStructure}/sq. ft.`
                                                         : 'Price on request'}
                                                 </p>
                                             </div>
                                         </div>
-                                        
+
                                         <div className="service-item">
                                             <div className="service-icon">
                                                 <i className="fas fa-tools"></i>
@@ -565,13 +568,13 @@ function ArchitectProfile() {
                                             <div className="service-info">
                                                 <h5>Building Service MEP</h5>
                                                 <p className="service-price">
-                                                    {allService?.buildingServiceMEP 
-                                                        ? `₹${allService.buildingServiceMEP}/sq. ft.` 
+                                                    {allService?.buildingServiceMEP
+                                                        ? `₹${allService.buildingServiceMEP}/sq. ft.`
                                                         : 'Price on request'}
                                                 </p>
                                             </div>
                                         </div>
-                                        
+
                                         <div className="service-item">
                                             <div className="service-icon">
                                                 <i className="fas fa-pencil-ruler"></i>
@@ -579,13 +582,13 @@ function ArchitectProfile() {
                                             <div className="service-info">
                                                 <h5>Working Drawing</h5>
                                                 <p className="service-price">
-                                                    {allService?.workingDrawing 
-                                                        ? `₹${allService.workingDrawing}/sq. ft.` 
+                                                    {allService?.workingDrawing
+                                                        ? `₹${allService.workingDrawing}/sq. ft.`
                                                         : 'Price on request'}
                                                 </p>
                                             </div>
                                         </div>
-                                        
+
                                         <div className="service-item">
                                             <div className="service-icon">
                                                 <i className="fas fa-couch"></i>
@@ -593,13 +596,13 @@ function ArchitectProfile() {
                                             <div className="service-info">
                                                 <h5>Interior 3D</h5>
                                                 <p className="service-price">
-                                                    {allService?.interior3D 
-                                                        ? `₹${allService.interior3D}/sq. ft.` 
+                                                    {allService?.interior3D
+                                                        ? `₹${allService.interior3D}/sq. ft.`
                                                         : 'Price on request'}
                                                 </p>
                                             </div>
                                         </div>
-                                        
+
                                         <div className="service-item">
                                             <div className="service-icon">
                                                 <i className="fas fa-building"></i>
@@ -607,8 +610,8 @@ function ArchitectProfile() {
                                             <div className="service-info">
                                                 <h5>Exterior 3D</h5>
                                                 <p className="service-price">
-                                                    {allService?.exterior3D 
-                                                        ? `₹${allService.exterior3D}/sq. ft.` 
+                                                    {allService?.exterior3D
+                                                        ? `₹${allService.exterior3D}/sq. ft.`
                                                         : 'Price on request'}
                                                 </p>
                                             </div>
@@ -625,15 +628,15 @@ function ArchitectProfile() {
                     <div className="container-fluid">
                         <div className="portfolio-header">
                             <h2>Portfolio</h2>
-                            
+
                             <div className="portfolio-tabs">
-                                <button 
+                                <button
                                     className={`tab-button ${activeTab === 'gallery' ? 'active' : ''}`}
                                     onClick={() => setActiveTab('gallery')}
                                 >
                                     <i className="fas fa-images"></i> Gallery
                                 </button>
-                                <button 
+                                <button
                                     className={`tab-button ${activeTab === 'portfolio' ? 'active' : ''}`}
                                     onClick={() => setActiveTab('portfolio')}
                                 >
@@ -641,7 +644,7 @@ function ArchitectProfile() {
                                 </button>
                             </div>
                         </div>
-                        
+
                         <div className="portfolio-content">
                             {activeTab === 'gallery' ? (
                                 <div className="gallery-grid">
@@ -692,16 +695,16 @@ function ArchitectProfile() {
                                     ratingPercentages={ratingPercentages}
                                 />
                             </div>
-                            
+
                             <div className="col-lg-7">
                                 <div className="reviews-container">
                                     <div className="reviews-header">
                                         <h3>Customer Reviews</h3>
                                         <span className="reviews-count">{reviews?.length || 0} reviews</span>
                                     </div>
-                                    
+
                                     <ReviewAdd user_id={user?._id} provider_id={id} />
-                                    
+
                                     <div className="reviews-list">
                                         {reviews && reviews.length > 0 ? (
                                             reviews.reverse().map((item, index) => (
@@ -745,15 +748,15 @@ function ArchitectProfile() {
                         </div>
                     </div>
                 </section>
-                
+
                 {/* Call Modal */}
                 {open && (
-                    <ModelOfPriceAndTime 
-                        seconds={time} 
-                        UserData={user} 
-                        Profile={profile} 
-                        onClose={handleClose} 
-                        startCall={connectWithProviderWithCall} 
+                    <ModelOfPriceAndTime
+                        seconds={time}
+                        UserData={user}
+                        Profile={profile}
+                        onClose={handleClose}
+                        startCall={connectWithProviderWithCall}
                     />
                 )}
             </div>

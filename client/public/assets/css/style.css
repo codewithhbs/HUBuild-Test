@@ -6160,3 +6160,10 @@ form.d_block {
   }
 }
 /* user dasboard css  */
+.yellow-bg-color{
+  background:#E8BC37 !important;
+}
+
+.yellow-bg-color:hover{
+  background-color:#E8BC37 !important;
+}

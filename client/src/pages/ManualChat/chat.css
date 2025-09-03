@@ -1,6 +1,14 @@
 .modern-chat-container {
-  height: 85vh;
+  height: 88vh;
   background: #f8f9fa;
+}
+
+@media (max-width:750px) {
+  .modern-chat-container {
+    height: 100vh;
+    background: #f8f9fa;
+  }
+  
 }
 
 .chat-list-container {
