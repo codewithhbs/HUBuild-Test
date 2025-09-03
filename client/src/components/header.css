@@ -353,8 +353,16 @@
 }
 
 .dropdown-menu {
+    top: 32px !important;
+    right: 0px !important;
+}
+
+@media (max-width:992px) {
+    
+.dropdown-menu {
     top: 0px !important;
     right: 0px !important;
+}
 }
 
 .custombutton {
