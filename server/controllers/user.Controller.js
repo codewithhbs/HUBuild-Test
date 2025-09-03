@@ -793,7 +793,7 @@ exports.createPayment = async (req, res) => {
         //         message: 'Coupon code is required and must be a string',
         //     });
         // }
-        const rechargeCoupon = await RechargeCoupon.findOne({ couponCode: couponCode.trim() });
+        const rechargeCoupon = await RechargeCoupon.findOne({ couponCode: couponCode.trim() || '' });
         if (!rechargeCoupon) {
             return res.status(400).json({
                 success: false,
