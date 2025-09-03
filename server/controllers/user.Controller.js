@@ -784,47 +784,41 @@ exports.getUserById = async (req, res) => {
 
 exports.createPayment = async (req, res) => {
     try {
-        // console.log("i create payment start")
         const { userId } = req.params;
         const { price, couponCode } = req.body;
-        // if (!couponCode || typeof couponCode !== 'string') {
-        //     return res.status(400).json({
-        //         success: false,
-        //         message: 'Coupon code is required and must be a string',
-        //     });
-        // }
-        const rechargeCoupon = await RechargeCoupon.findOne({ couponCode: couponCode.trim() || '' });
-        if (!rechargeCoupon) {
-            return res.status(400).json({
-                success: false,
-                message: 'Recharge coupon not found',
-            });
-        }
+
+        // --- check user ---
         const user = await User.findById(userId);
         if (!user) {
             return res.status(400).json({
                 success: false,
                 message: "User not found",
-                error: "User not found",
-            })
-        }
-        if (!price) {
-            return res.status(400).json({
-                success: false,
-                message: "Price is required",
-                error: "Price is required"
-            })
-        }
-        if (price === 0) {
-            return res.status(400).json({
-                success: false,
-                message: "Price cannot be zero",
-                error: "Price cannot be zero"
-            })
+            });
         }
 
+        // --- check price ---
+        if (!price || price === 0) {
+            return res.status(400).json({
+                success: false,
+                message: "Price must be greater than zero",
+            });
+        }
+
+        // --- check coupon (only if provided) ---
+        let rechargeCoupon = null;
+        if (couponCode && typeof couponCode === "string") {
+            rechargeCoupon = await RechargeCoupon.findOne({ couponCode: couponCode.trim() });
+            if (!rechargeCoupon) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Invalid recharge coupon',
+                });
+            }
+        }
+
+        // --- create razorpay order ---
         const razorpayOptions = {
-            amount: price * 100 || 5000000,
+            amount: price * 100, // in paise
             currency: 'INR',
             payment_capture: 1,
         };
@@ -837,10 +831,11 @@ exports.createPayment = async (req, res) => {
                 message: 'Error in creating Razorpay order',
             });
         }
-        // console.log("create payment end")
-        user.razorpayOrderId = razorpayOrder.id
-        user.rechargeCoupon = rechargeCoupon?._id
-        await user.save()
+
+        // --- save data in user ---
+        user.razorpayOrderId = razorpayOrder.id;
+        if (rechargeCoupon) user.rechargeCoupon = rechargeCoupon._id;
+        await user.save();
 
         return res.status(200).json({
             success: true,
@@ -851,7 +846,6 @@ exports.createPayment = async (req, res) => {
             }
         });
 
-
     } catch (error) {
         console.log("Internal server error in doing payment", error)
         res.status(500).json({
@@ -861,6 +855,7 @@ exports.createPayment = async (req, res) => {
         })
     }
 }
+
 
 exports.PaymentVerify = async (req, res) => {
     try {
