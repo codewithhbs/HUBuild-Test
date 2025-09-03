@@ -310,7 +310,7 @@
     }
 
     .hub-header__collapse.show {
-        right: 25%;
+        left: 0%;
     }
 
     .hub-header__nav {
