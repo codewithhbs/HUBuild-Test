@@ -2413,7 +2413,7 @@ const ManualChat = () => {
                                 <Dropdown.Item
                                   key={member.id}
                                   onClick={() => handleCallMember(member, selectedChat)}
-                                  className="d-flex justify-content-between align-items-center"
+                                  className="forDisplayFlex justify-content-between align-items-center"
                                 >
                                   <div>
                                     <div className="fw-semibold">{member.name}</div>
@@ -2429,17 +2429,9 @@ const ManualChat = () => {
                   </div>
 
                   {chatData?.PaymentStatus?.toLowerCase() !== "paid" ? (
-                    <div className="chatn-payment-warning">
-                      <div className="chatn-payment-box">
-                        <h2 className="chatn-warning-title">Access Restricted</h2>
-                        <p className="chatn-warning-text">
-                          To join this group conversation, please complete your payment.
-                        </p>
-                        <p className="chatn-warning-text-muted">
-                          Contact our <strong>support team</strong> for assistance.
-                        </p>
-                      </div>
-                    </div>
+                     <div className="no-messages">
+                                                    <p>Send a message to start a conversation</p>
+                                                </div>  
                   ) : (
                     <ScrollToBottom className="chatn-messages-container" initialScrollBehavior="smooth">
                       {messages.length === 0 ? (

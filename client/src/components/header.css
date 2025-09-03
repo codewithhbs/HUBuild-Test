@@ -353,7 +353,7 @@
 }
 
 .dropdown-menu {
-    top: 32px !important;
+    top: 0px !important;
     right: 0px !important;
 }
 
@@ -467,7 +467,7 @@ html {
 }
 
 .forDisplayFlex {
-    display: flex;
+    display: flex !important;
 }
 
 .for-margin-right {
