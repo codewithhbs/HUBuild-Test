@@ -206,6 +206,11 @@ const ManualChat = () => {
   // Add temp canvas ref for synchronous bitmap preservation during zoom
   const tempCanvasRef = useRef(null)
 
+  // Pinch zoom states
+  const [isPinching, setIsPinching] = useState(false)
+  const [lastPinchDistance, setLastPinchDistance] = useState(0)
+  const [pinchCenter, setPinchCenter] = useState({ x: 0, y: 0 })
+
   // Add participants mapping for better sender resolution
   const [participantsMap, setParticipantsMap] = useState(new Map())
 
@@ -283,11 +288,12 @@ const ManualChat = () => {
     }
   }, [pendingDataURL, isAnnotating])
 
-  // Keep the vector scaling useEffect as is (only for !hasErased)
+  // Handle zoom changes - preserve all content properly
   useEffect(() => {
     if (canvasRef.current && isAnnotating) {
       const oldZoom = prevZoomRef.current;
-      if (zoomLevel !== oldZoom && !hasErased) {
+      if (zoomLevel !== oldZoom) {
+        // Always scale the vector data first
         const saveDataStr = canvasRef.current.getSaveData();
         if (saveDataStr && saveDataStr !== '{"lines":[]}') {
           try {
@@ -305,20 +311,20 @@ const ManualChat = () => {
             console.error("Failed to scale canvas data", e);
           }
         }
+
+        // If there's erased content, overlay it on top of the scaled vector data
+        if (hasErased && tempCanvasRef.current) {
+          const drawingCanvas = canvasRef.current.canvas.drawing;
+          const ctx = drawingCanvas.getContext("2d");
+          // Draw the preserved erased content on top of the scaled vector data
+          ctx.drawImage(tempCanvasRef.current, 0, 0, drawingCanvas.width, drawingCanvas.height);
+          tempCanvasRef.current = null;
+        }
+        
         prevZoomRef.current = zoomLevel;
       }
     }
   }, [zoomLevel, isAnnotating, hasErased]);
-
-  // New effect for redrawing preserved bitmap after zoom
-  useEffect(() => {
-    if (tempCanvasRef.current && canvasRef.current && hasErased && isAnnotating) {
-      const drawingCanvas = canvasRef.current.canvas.drawing;
-      const ctx = drawingCanvas.getContext("2d");
-      ctx.drawImage(tempCanvasRef.current, 0, 0, drawingCanvas.width, drawingCanvas.height);
-      tempCanvasRef.current = null;
-    }
-  }, [zoomLevel, hasErased, isAnnotating]);
 
   // Enhanced function to build participants map
   const buildParticipantsMap = useCallback(
@@ -684,18 +690,20 @@ const ManualChat = () => {
     [shapes],
   )
 
-  // Modify handleZoom to use pendingDataURL instead of tempCanvasRef
+  // Handle zoom with proper content preservation
   const handleZoom = useCallback(
     (delta, mouseX = null, mouseY = null) => {
       const zoomFactor = delta > 0 ? 1.1 : 0.9;
       const newZoom = Math.min(Math.max(zoomLevel * zoomFactor, 0.1), 5);
 
       if (newZoom !== zoomLevel) {
-        if (canvasRef.current && isAnnotating && hasErased) {
+        // Always preserve current canvas state before zoom if there's any content
+        if (canvasRef.current && isAnnotating) {
           const drawingCanvas = canvasRef.current.canvas.drawing;
           const oldWidth = drawingCanvas.width;
           const oldHeight = drawingCanvas.height;
 
+          // Create a temporary canvas to preserve the current state
           tempCanvasRef.current = document.createElement("canvas");
           tempCanvasRef.current.width = oldWidth;
           tempCanvasRef.current.height = oldHeight;
@@ -703,6 +711,7 @@ const ManualChat = () => {
           tempCtx.drawImage(drawingCanvas, 0, 0);
         }
 
+        // Calculate new pan offset
         const container = containerRef.current;
         if (container) {
           const rect = container.getBoundingClientRect();
@@ -719,22 +728,14 @@ const ManualChat = () => {
           };
           setPanOffset(newPanOffset);
         }
+        
+        // Update zoom level - this will trigger the useEffect to handle the canvas redrawing
         setZoomLevel(newZoom);
       }
     },
-    [zoomLevel, panOffset, hasErased, isAnnotating],
+    [zoomLevel, panOffset, isAnnotating],
   );
 
-  // Add useEffect for redrawing preserved bitmap after zoom
-  useEffect(() => {
-    if (tempCanvasRef.current && canvasRef.current && hasErased && isAnnotating) {
-      const drawingCanvas = canvasRef.current.canvas.drawing;
-      const ctx = drawingCanvas.getContext("2d");
-      ctx.clearRect(0, 0, drawingCanvas.width, drawingCanvas.height);
-      ctx.drawImage(tempCanvasRef.current, 0, 0, drawingCanvas.width, drawingCanvas.height);
-      tempCanvasRef.current = null;
-    }
-  }, [zoomLevel, hasErased, isAnnotating]);
 
   const handleWheel = useCallback(
     (e) => {
@@ -743,6 +744,7 @@ const ManualChat = () => {
     },
     [handleZoom],
   )
+
 
   const handleFitToScreen = useCallback(() => {
     if (containerRef.current) {
@@ -770,13 +772,42 @@ const ManualChat = () => {
     setZoomLevel(1)
   }, [originalWidth, originalHeight])
 
+  // Unified event handler for both mouse and touch
+  const getEventPosition = (e) => {
+    if (e.touches && e.touches.length > 0) {
+      return { x: e.touches[0].clientX, y: e.touches[0].clientY }
+    }
+    return { x: e.clientX, y: e.clientY }
+  }
+
+  // Calculate distance between two touch points
+  const getTouchDistance = (touch1, touch2) => {
+    const dx = touch1.clientX - touch2.clientX
+    const dy = touch1.clientY - touch2.clientY
+    return Math.sqrt(dx * dx + dy * dy)
+  }
+
+  // Calculate center point between two touch points
+  const getTouchCenter = (touch1, touch2) => {
+    return {
+      x: (touch1.clientX + touch2.clientX) / 2,
+      y: (touch1.clientY + touch2.clientY) / 2
+    }
+  }
+
   // Pan functionality
   const handleMouseDown = useCallback(
     (e) => {
-      if (e.button === 1 || (e.button === 0 && (e.ctrlKey || !isAnnotating || drawingTool === "pan"))) {
-        // Middle mouse or Ctrl+Left click or Left click in preview mode or pan mode
+      const pos = getEventPosition(e)
+      const isTouch = e.touches && e.touches.length > 0
+      const isMiddleMouse = e.button === 1
+      const isLeftClickWithCtrl = e.button === 0 && e.ctrlKey
+      const isPanMode = drawingTool === "pan"
+      const isPreviewMode = !isAnnotating
+      
+      if (isMiddleMouse || isLeftClickWithCtrl || isPanMode || isPreviewMode) {
         setIsPanning(true)
-        setLastPanPoint({ x: e.clientX, y: e.clientY })
+        setLastPanPoint({ x: pos.x, y: pos.y })
         e.preventDefault()
       }
     },
@@ -786,13 +817,14 @@ const ManualChat = () => {
   const handleMouseMove = useCallback(
     (e) => {
       if (isPanning) {
-        const deltaX = e.clientX - lastPanPoint.x
-        const deltaY = e.clientY - lastPanPoint.y
+        const pos = getEventPosition(e)
+        const deltaX = pos.x - lastPanPoint.x
+        const deltaY = pos.y - lastPanPoint.y
         setPanOffset((prev) => ({
           x: prev.x + deltaX,
           y: prev.y + deltaY,
         }))
-        setLastPanPoint({ x: e.clientX, y: e.clientY })
+        setLastPanPoint({ x: pos.x, y: pos.y })
       }
     },
     [isPanning, lastPanPoint],
@@ -892,16 +924,23 @@ const ManualChat = () => {
   // Enhanced Canvas Click Handler
   const handleCanvasClick = useCallback(
     (e) => {
+      console.log("Canvas click triggered, isAddingText:", isAddingText, "event type:", e.type, "drawingTool:", drawingTool)
       if (isAddingText) {
+        e.preventDefault()
+        e.stopPropagation()
+        
         const canvas = e.currentTarget
         const rect = canvas.getBoundingClientRect()
-        const x = (e.clientX - rect.left) / zoomLevel
-        const y = (e.clientY - rect.top) / zoomLevel
+        const pos = getEventPosition(e)
+        const x = (pos.x - rect.left) / zoomLevel
+        const y = (pos.y - rect.top) / zoomLevel
+        console.log("Setting text position:", { x, y })
         setTextPosition({ x, y })
-        e.stopPropagation()
+      } else {
+        console.log("Canvas click ignored - not in text adding mode")
       }
     },
-    [isAddingText],
+    [isAddingText, drawingTool, zoomLevel],
   )
 
   // Modified handleShapeMouseDown to handle eraser for brush strokes and shapes
@@ -909,8 +948,9 @@ const ManualChat = () => {
     (e) => {
       const canvas = e.currentTarget
       const rect = canvas.getBoundingClientRect()
-      const visual_x = e.clientX - rect.left
-      const visual_y = e.clientY - rect.top
+      const pos = getEventPosition(e)
+      const visual_x = pos.x - rect.left
+      const visual_y = pos.y - rect.top
       const logical_x = visual_x / zoomLevel
       const logical_y = visual_y / zoomLevel
 
@@ -967,8 +1007,9 @@ const ManualChat = () => {
     (e) => {
       const canvas = e.currentTarget
       const rect = canvas.getBoundingClientRect()
-      const visual_x = e.clientX - rect.left
-      const visual_y = e.clientY - rect.top
+      const pos = getEventPosition(e)
+      const visual_x = pos.x - rect.left
+      const visual_y = pos.y - rect.top
       const logical_x = visual_x / zoomLevel
       const logical_y = visual_y / zoomLevel
 
@@ -1056,6 +1097,95 @@ const ManualChat = () => {
     }
   }, [isDrawingShape, currentShape, drawingTool, saveAnnotationState]);
 
+  // Touch event handlers for pinch zoom
+  const handleTouchStart = useCallback(
+    (e) => {
+      if (e.touches.length === 2) {
+        // Two finger pinch
+        e.preventDefault()
+        e.stopPropagation()
+        
+        const distance = getTouchDistance(e.touches[0], e.touches[1])
+        const center = getTouchCenter(e.touches[0], e.touches[1])
+        
+        setIsPinching(true)
+        setLastPinchDistance(distance)
+        setPinchCenter(center)
+      } else if (e.touches.length === 1) {
+        // Single touch - handle as pan or drawing
+        const pos = getEventPosition(e)
+        const isPanMode = drawingTool === "pan"
+        const isPreviewMode = !isAnnotating
+        
+        if (isPanMode || isPreviewMode) {
+          setIsPanning(true)
+          setLastPanPoint({ x: pos.x, y: pos.y })
+          e.preventDefault()
+        } else if (isAnnotating && drawingTool !== "text") {
+          // Handle drawing tools
+          handleShapeMouseDown(e)
+        }
+      }
+    },
+    [drawingTool, isAnnotating, handleShapeMouseDown],
+  )
+
+  const handleTouchMove = useCallback(
+    (e) => {
+      if (isPinching && e.touches.length === 2) {
+        // Handle pinch zoom
+        e.preventDefault()
+        e.stopPropagation()
+        
+        const distance = getTouchDistance(e.touches[0], e.touches[1])
+        const center = getTouchCenter(e.touches[0], e.touches[1])
+        
+        if (lastPinchDistance > 0) {
+          const scale = distance / lastPinchDistance
+          const delta = (scale - 1) * 100 // Convert to wheel delta equivalent
+          handleZoom(delta, center.x, center.y)
+        }
+        
+        setLastPinchDistance(distance)
+        setPinchCenter(center)
+      } else if (isPanning && e.touches.length === 1) {
+        // Handle pan
+        const pos = getEventPosition(e)
+        const deltaX = pos.x - lastPanPoint.x
+        const deltaY = pos.y - lastPanPoint.y
+        setPanOffset((prev) => ({
+          x: prev.x + deltaX,
+          y: prev.y + deltaY,
+        }))
+        setLastPanPoint({ x: pos.x, y: pos.y })
+        e.preventDefault()
+      } else if (isAnnotating && drawingTool !== "text" && e.touches.length === 1) {
+        // Handle drawing
+        handleShapeMouseMove(e)
+      }
+    },
+    [isPinching, isPanning, lastPinchDistance, lastPanPoint, handleZoom, handleShapeMouseMove, drawingTool, isAnnotating],
+  )
+
+  const handleTouchEnd = useCallback(
+    (e) => {
+      if (isPinching) {
+        setIsPinching(false)
+        setLastPinchDistance(0)
+        setPinchCenter({ x: 0, y: 0 })
+      }
+      
+      if (isPanning) {
+        setIsPanning(false)
+      }
+      
+      if (isAnnotating && drawingTool !== "text") {
+        handleShapeMouseUp(e)
+      }
+    },
+    [isPinching, isPanning, handleShapeMouseUp, drawingTool, isAnnotating],
+  )
+
   // Enhanced Text Drag Handlers
   const handleTextMouseDown = useCallback(
     (e, textId) => {
@@ -1069,8 +1199,9 @@ const ManualChat = () => {
       if (!canvas) return
 
       const rect = canvas.getBoundingClientRect()
-      const canvasX = (e.clientX - rect.left) / zoomLevel
-      const canvasY = (e.clientY - rect.top) / zoomLevel
+      const pos = getEventPosition(e)
+      const canvasX = (pos.x - rect.left) / zoomLevel
+      const canvasY = (pos.y - rect.top) / zoomLevel
 
       const offsetX = canvasX - textElement.x
       const offsetY = canvasY - textElement.y
@@ -1083,8 +1214,9 @@ const ManualChat = () => {
         if (!canvas) return
 
         const canvasRect = canvas.getBoundingClientRect()
-        const newCanvasX = (moveEvent.clientX - canvasRect.left) / zoomLevel
-        const newCanvasY = (moveEvent.clientY - canvasRect.top) / zoomLevel
+        const movePos = getEventPosition(moveEvent)
+        const newCanvasX = (movePos.x - canvasRect.left) / zoomLevel
+        const newCanvasY = (movePos.y - canvasRect.top) / zoomLevel
 
         const newX = Math.max(0, Math.min(originalWidth - 100, newCanvasX - offsetX))
         const newY = Math.max(
@@ -1099,10 +1231,14 @@ const ManualChat = () => {
         setIsDragging(false)
         document.removeEventListener("mousemove", handleMouseMove)
         document.removeEventListener("mouseup", handleMouseUp)
+        document.removeEventListener("touchmove", handleMouseMove)
+        document.removeEventListener("touchend", handleMouseUp)
       }
 
       document.addEventListener("mousemove", handleMouseMove)
       document.addEventListener("mouseup", handleMouseUp)
+      document.addEventListener("touchmove", handleMouseMove)
+      document.addEventListener("touchend", handleMouseUp)
     },
     [textElements, updateTextElement, zoomLevel, originalWidth, originalHeight],
   )
@@ -1401,20 +1537,29 @@ const ManualChat = () => {
   // Handle click outside text elements to unselect
   const handleCanvasWrapperClick = useCallback(
     (e) => {
+      console.log("handleCanvasWrapperClick triggered, isDragging:", isDragging, "isAddingText:", isAddingText, "textInput:", textInput)
       if (isDragging) {
+        console.log("handleCanvasWrapperClick: Ignored due to dragging")
         return
       }
 
       const clickedOnTextElement = e.target.closest(".text-element")
-      const clickedOnTextInput = e.target.closest(".form-control.form-control-sm")
+      const clickedOnTextInput = e.target.closest(".form-control") || e.target.closest(".input-group")
       const clickedOnEditTextModalContent = e.target.closest(".chat-screen-text-edit-modal")
+
+      console.log("Clicked elements:", { clickedOnTextElement, clickedOnTextInput, clickedOnEditTextModalContent })
 
       if (!clickedOnTextElement && !clickedOnTextInput && !clickedOnEditTextModalContent) {
         setSelectedTextId(null)
         if (isAddingText && !textInput.trim()) {
+          console.log("handleCanvasWrapperClick: Resetting text position and isAddingText")
           setTextPosition(null)
           setIsAddingText(false)
+        } else {
+          console.log("handleCanvasWrapperClick: Not resetting - isAddingText:", isAddingText, "textInput:", textInput)
         }
+      } else {
+        console.log("handleCanvasWrapperClick: Clicked on text element/input - not resetting")
       }
     },
     [isDragging, isAddingText, textInput],
@@ -1429,6 +1574,19 @@ const ManualChat = () => {
     window.addEventListener("resize", handleResize)
     return () => window.removeEventListener("resize", handleResize)
   }, [])
+
+  // Debug text position changes
+  useEffect(() => {
+    console.log("Text position changed:", textPosition)
+  }, [textPosition])
+
+  // Debug isAddingText changes
+  useEffect(() => {
+    console.log("isAddingText changed:", isAddingText)
+    if (isAddingText === false) {
+      console.trace("isAddingText set to false")
+    }
+  }, [isAddingText])
 
   useEffect(() => {
     if (canvasRef.current) {
@@ -2553,18 +2711,19 @@ const ManualChat = () => {
                     show={showModal}
                     onHide={handleCloseModal}
                     centered
-                    size="xl"
-                    className="image-annotation-modal"
+                    size={isMobileView ? "lg" : "xl"}
+                    className="image-annotation-modal forzindex"
                     ref={modalRef}
+                    fullscreen={isMobileView ? "sm-down" : false}
                   >
                     <Modal.Header closeButton style={{ backgroundColor: "#EDBE3A" }} className="border-0 text-white">
                       <div style={{ display: "flex" }} className="w-100 align-items-center justify-content-between">
-                        <Modal.Title className="d-flex align-items-center gap-2 fw-bold fs-5 mb-0">
+                        <Modal.Title className="forDisplayFlex align-items-center gap-2 fw-bold fs-5 mb-0">
                           <MdBrush className="fs-4" />
                           {isAnnotating ? "Annotate Image" : "View Image"}
                         </Modal.Title>
 
-                        <div className="d-flex align-items-center gap-2">
+                        <div className="forDisplayFlex align-items-center gap-2">
                           {!isChatEnded &&
                             (!isAnnotating ? (
                               <button
@@ -2629,14 +2788,18 @@ const ManualChat = () => {
                       </div>
                     </Modal.Header>
 
-                    <Modal.Body className="p-0" style={{ height: "80vh", overflow: "hidden" }}>
+                    <Modal.Body className="p-0" style={{ height: isMobileView ? "85vh" : "80vh", overflow: "hidden" }}>
                       {selectedImage && (
                         <div className="h-100 d-flex flex-column flex-lg-row">
                           {/* Tools Panel - Left Sidebar on Desktop, Top on Mobile */}
                           {isAnnotating && (
                             <div
                               className="tools-panel text-white p-3 order-1 tool-height order-lg-0"
-                              style={{ minWidth: "300px", overflowY: "auto" }}
+                              style={{ 
+                                minWidth: isMobileView ? "100%" : "300px", 
+                                maxHeight: isMobileView ? "40vh" : "none",
+                                overflowY: "auto" 
+                              }}
                             >
                               {/* Drawing Tools Section */}
                               <div className="mb-4">
@@ -2645,23 +2808,27 @@ const ManualChat = () => {
                                 </h6>
 
                                 {/* First Row */}
-                                <div style={{ display: "flex" }} className="gap-2 mb-2">
+                                <div style={{ display: "flex" }} className={`gap-2 mb-2 ${isMobileView ? "flex-wrap" : "flex-wrap"}`}>
                                   <button
                                     className={`btn ${drawingTool === "brush" ? "btn-info text-dark" : "btn-outline-info"}`}
                                     onClick={() => {
+                                      console.log("Brush tool clicked, current isAddingText:", isAddingText)
                                       setDrawingTool("brush")
-                                      if (isAddingText) setIsAddingText(false)
+                                      if (isAddingText) {
+                                        console.log("Brush tool: Setting isAddingText to false")
+                                        setIsAddingText(false)
+                                      }
                                     }}
                                     style={{
-                                      width: "45px",
-                                      height: "45px",
+                                      width: isMobileView ? "44px" : "45px",
+                                      height: isMobileView ? "44px" : "45px",
                                       display: "flex",
                                       alignItems: "center",
                                       justifyContent: "center",
                                     }}
                                     title="Brush Tool - Draw freehand"
                                   >
-                                    <MdBrush />
+                                    <MdBrush size={isMobileView ? 18 : 20} />
                                   </button>
 
                                   <button
@@ -2671,15 +2838,15 @@ const ManualChat = () => {
                                       if (isAddingText) setIsAddingText(false)
                                     }}
                                     style={{
-                                      width: "45px",
-                                      height: "45px",
+                                      width: isMobileView ? "44px" : "45px",
+                                      height: isMobileView ? "44px" : "45px",
                                       display: "flex",
                                       alignItems: "center",
                                       justifyContent: "center",
                                     }}
                                     title="Eraser Tool - Remove drawings"
                                   >
-                                    <MdClear />
+                                    <MdClear size={isMobileView ? 18 : 20} />
                                   </button>
 
                                   <button
@@ -2689,15 +2856,15 @@ const ManualChat = () => {
                                       if (isAddingText) setIsAddingText(false)
                                     }}
                                     style={{
-                                      width: "45px",
-                                      height: "45px",
+                                      width: isMobileView ? "44px" : "45px",
+                                      height: isMobileView ? "44px" : "45px",
                                       display: "flex",
                                       alignItems: "center",
                                       justifyContent: "center",
                                     }}
                                     title="Rectangle Tool - Draw rectangles"
                                   >
-                                    <MdRectangle />
+                                    <MdRectangle size={isMobileView ? 18 : 20} />
                                   </button>
 
                                   <button
@@ -2707,20 +2874,17 @@ const ManualChat = () => {
                                       if (isAddingText) setIsAddingText(false)
                                     }}
                                     style={{
-                                      width: "45px",
-                                      height: "45px",
+                                      width: isMobileView ? "44px" : "45px",
+                                      height: isMobileView ? "44px" : "45px",
                                       display: "flex",
                                       alignItems: "center",
                                       justifyContent: "center",
                                     }}
                                     title="Circle Tool - Draw circles"
                                   >
-                                    <MdCircle />
+                                    <MdCircle size={isMobileView ? 18 : 20} />
                                   </button>
-                                </div>
 
-                                {/* Second Row */}
-                                <div style={{ display: "flex" }} className="gap-2">
                                   <button
                                     className={`btn ${drawingTool === "arrow" ? "btn-info text-dark" : "btn-outline-info"}`}
                                     onClick={() => {
@@ -2728,38 +2892,43 @@ const ManualChat = () => {
                                       if (isAddingText) setIsAddingText(false)
                                     }}
                                     style={{
-                                      width: "45px",
-                                      height: "45px",
+                                      width: isMobileView ? "44px" : "45px",
+                                      height: isMobileView ? "44px" : "45px",
                                       display: "flex",
                                       alignItems: "center",
                                       justifyContent: "center",
                                     }}
                                     title="Arrow Tool - Draw arrows"
                                   >
-                                    <MdArrowForward />
+                                    <MdArrowForward size={isMobileView ? 18 : 20} />
                                   </button>
 
                                   <button
                                     className={`btn ${drawingTool === "text" ? "btn-info text-dark" : "btn-outline-info"}`}
                                     onClick={() => {
+                                      console.log("Text tool button clicked, current isAddingText:", isAddingText)
                                       if (isAddingText) {
+                                        console.log("Text tool: Disabling text mode")
                                         setIsAddingText(false)
                                         setDrawingTool("brush")
+                                        console.log("Text mode disabled")
                                       } else {
+                                        console.log("Text tool: Enabling text mode")
                                         setIsAddingText(true)
                                         setDrawingTool("text")
+                                        console.log("Text mode enabled")
                                       }
                                     }}
                                     style={{
-                                      width: "45px",
-                                      height: "45px",
+                                      width: isMobileView ? "44px" : "45px",
+                                      height: isMobileView ? "44px" : "45px",
                                       display: "flex",
                                       alignItems: "center",
                                       justifyContent: "center",
                                     }}
                                     title="Text Tool - Add text"
                                   >
-                                    <TfiText />
+                                    <TfiText size={isMobileView ? 18 : 20} />
                                   </button>
 
                                   <button
@@ -2769,16 +2938,21 @@ const ManualChat = () => {
                                       if (isAddingText) setIsAddingText(false)
                                     }}
                                     style={{
-                                      width: "45px",
-                                      height: "45px",
+                                      width: isMobileView ? "44px" : "45px",
+                                      height: isMobileView ? "44px" : "45px",
                                       display: "flex",
                                       alignItems: "center",
                                       justifyContent: "center",
                                     }}
                                     title="Pan Tool - Drag to move"
                                   >
-                                    <Hand />
+                                    <Hand size={isMobileView ? 18 : 20} />
                                   </button>
+                                </div>
+
+                                {/* Second Row */}
+                                <div style={{ display: "flex" }} className={`gap-2 ${isMobileView ? "flex-wrap" : ""}`}>
+                                  
                                 </div>
                               </div>
 
@@ -2788,7 +2962,7 @@ const ManualChat = () => {
                                   {drawingTool === "eraser" ? "Eraser Settings" : "Brush Settings"}
                                 </h6>
 
-                                <div className="canvas-flex gap-3">
+                                <div className={`canvas-flex gap-3 ${isMobileView ? "flex-column" : ""}`}>
                                   {drawingTool !== "eraser" && (
                                     <div className="mb-3">
                                       <label className="form-label text-black small">Color</label>
@@ -2798,7 +2972,10 @@ const ManualChat = () => {
                                           value={brushColor}
                                           onChange={(e) => setBrushColor(e.target.value)}
                                           className="form-control border form-control-color"
-                                          style={{ width: "50px", height: "40px" }}
+                                          style={{ 
+                                            width: isMobileView ? "60px" : "50px", 
+                                            height: isMobileView ? "44px" : "40px" 
+                                          }}
                                         />
                                       </div>
                                     </div>
@@ -2819,6 +2996,9 @@ const ManualChat = () => {
                                           : setBrushRadius(Number(e.target.value))
                                       }
                                       className="form-range"
+                                      style={{ 
+                                        height: isMobileView ? "8px" : "6px"
+                                      }}
                                     />
                                   </div>
                                 </div>
@@ -2827,11 +3007,11 @@ const ManualChat = () => {
                               {/* Text Settings */}
                               {isAddingText && (
                                 <div className="mb-4">
-                                  <h6 className="text-black mb-3 d-flex align-items-center gap-2">
+                                  <h6 className="text-black forDisplayFlex mb-3 align-items-center gap-2">
                                     <MdPinEnd className="text-warning" /> Text Settings
                                   </h6>
 
-                                  <div className="canvas-flex gap-3">
+                                  <div className={`canvas-flex gap-3 ${isMobileView ? "flex-column" : ""}`}>
                                     <div className="mb-3">
                                       <label className="form-label text-black small">Text Color</label>
                                       <input
@@ -2841,7 +3021,10 @@ const ManualChat = () => {
                                           setTextSettings((prev) => ({ ...prev, color: e.target.value }))
                                         }
                                         className="form-control border form-control-color w-100"
-                                        style={{ height: "40px" }}
+                                        style={{ 
+                                          height: isMobileView ? "44px" : "40px",
+                                          width: isMobileView ? "100%" : "auto"
+                                        }}
                                       />
                                     </div>
 
@@ -2861,6 +3044,9 @@ const ManualChat = () => {
                                           }))
                                         }
                                         className="form-range"
+                                        style={{ 
+                                          height: isMobileView ? "8px" : "6px"
+                                        }}
                                       />
                                     </div>
                                   </div>
@@ -2885,42 +3071,75 @@ const ManualChat = () => {
 
                               {/* Zoom Controls */}
                               <div className="mb-4">
-                                <h6 className="text-black mb-3 d-flex align-items-center gap-2">
+                                <h6 className="text-black mb-3 forDisplayFlex align-items-center gap-2">
                                   <MdZoomIn className="text-primary" /> Zoom Controls
                                 </h6>
-                                <div className="d-flex align-items-center gap-2">
+                                <div className={`forDisplayFlex align-items-center gap-2 ${isMobileView ? "flex-wrap" : ""}`}>
                                   <button
                                     className="btn btn-outline-primary btn-sm"
                                     onClick={() => handleZoom(100)}
                                     title="Zoom In"
+                                    style={{
+                                      width: isMobileView ? "44px" : "auto",
+                                      height: isMobileView ? "44px" : "auto",
+                                      display: "flex",
+                                      alignItems: "center",
+                                      justifyContent: "center"
+                                    }}
                                   >
-                                    <MdZoomIn size={20} />
+                                    <MdZoomIn size={isMobileView ? 18 : 20} />
                                   </button>
-                                  <span className="badge bg-light text-dark">{Math.round(zoomLevel * 100)}%</span>
+                                  <span className="badge bg-light text-dark" style={{ fontSize: isMobileView ? "0.7rem" : "0.75rem" }}>
+                                    {Math.round(zoomLevel * 100)}%
+                                  </span>
                                   <button
                                     className="btn btn-outline-primary btn-sm"
                                     onClick={() => handleZoom(-100)}
                                     title="Zoom Out"
+                                    style={{
+                                      width: isMobileView ? "44px" : "auto",
+                                      height: isMobileView ? "44px" : "auto",
+                                      display: "flex",
+                                      alignItems: "center",
+                                      justifyContent: "center"
+                                    }}
                                   >
-                                    <MdZoomOut size={20} />
+                                    <MdZoomOut size={isMobileView ? 18 : 20} />
                                   </button>
                                   <button
                                     className="btn btn-outline-primary btn-sm"
                                     onClick={resetZoom}
                                     title="Reset to 100%"
+                                    style={{
+                                      width: isMobileView ? "44px" : "auto",
+                                      height: isMobileView ? "44px" : "auto",
+                                      display: "flex",
+                                      alignItems: "center",
+                                      justifyContent: "center"
+                                    }}
                                   >
-                                    <MdUndo size={20} />
+                                    <MdUndo size={isMobileView ? 18 : 20} />
                                   </button>
                                   <button
                                     className="btn btn-outline-primary btn-sm"
                                     onClick={handleFitToScreen}
                                     title="Fit to Screen"
+                                    style={{
+                                      width: isMobileView ? "44px" : "auto",
+                                      height: isMobileView ? "44px" : "auto",
+                                      display: "flex",
+                                      alignItems: "center",
+                                      justifyContent: "center"
+                                    }}
                                   >
-                                    <MdCenterFocusWeak size={20} />
+                                    <MdCenterFocusWeak size={isMobileView ? 18 : 20} />
                                   </button>
                                 </div>
                                 <p className="text-black small mt-2">
-                                  Tip: Hold Ctrl + Click and drag to pan the image
+                                  {isMobileView 
+                                    ? "Tip: Use two fingers to zoom, drag to pan the image" 
+                                    : "Tip: Hold Ctrl + Click and drag to pan the image"
+                                  }
                                 </p>
                               </div>
                             </div>
@@ -2930,17 +3149,24 @@ const ManualChat = () => {
                           <div className="canvas-area flex-grow-1 bg-light position-relative order-0 order-lg-1">
                             <div
                               className={`canvas-wrapper position-relative overflow-hidden h-100 align-items-center justify-content-center ${isDraggingOver ? "drag-over" : ""}`}
-                              onClick={handleCanvasWrapperClick}
+                              onClick={isAddingText ? undefined : handleCanvasWrapperClick}
                               onWheel={handleWheel}
-                              onMouseDown={handleMouseDown}
-                              onMouseMove={handleMouseMove}
-                              onMouseUp={handleMouseUp}
+                              onMouseDown={isAddingText ? undefined : handleMouseDown}
+                              onMouseMove={isAddingText ? undefined : handleMouseMove}
+                              onMouseUp={isAddingText ? undefined : handleMouseUp}
+                              onTouchStart={isAddingText ? undefined : handleTouchStart}
+                              onTouchMove={isAddingText ? undefined : handleTouchMove}
+                              onTouchEnd={isAddingText ? undefined : handleTouchEnd}
                               onDragEnter={handleDragEnter}
                               onDragOver={handleDragOver}
                               onDragLeave={handleDragLeave}
                               onDrop={handleDrop}
                               ref={containerRef}
-                              style={{ display: "flex" }}
+                              style={{ 
+                                display: "flex",
+                                touchAction: isAddingText ? "auto" : "manipulation",
+                                userSelect: "none"
+                              }}
                             >
                               {isAnnotating ? (
                                 <div
@@ -2951,6 +3177,8 @@ const ManualChat = () => {
                                     top: `${panOffset.y}px`,
                                     width: `${originalWidth * zoomLevel}px`,
                                     height: `${originalHeight * zoomLevel}px`,
+                                    maxWidth: isMobileView ? "100vw" : "none",
+                                    maxHeight: isMobileView ? "60vh" : "none",
                                     cursor: isPanning
                                       ? "grabbing"
                                       : drawingTool === "pan"
@@ -2960,7 +3188,15 @@ const ManualChat = () => {
                                           : drawingTool === "eraser"
                                             ? getEraserCursor()
                                             : "default",
+                                    touchAction: isAddingText ? "auto" : "none",
+                                    userSelect: "none"
                                   }}
+                                  onClick={isAddingText ? handleCanvasClick : undefined}
+                                  onTouchStart={isAddingText ? (e) => {
+                                    e.preventDefault()
+                                    e.stopPropagation()
+                                    handleCanvasClick(e)
+                                  } : undefined}
                                 >
                                   <>
                                     {/* Drawing Canvas */}
@@ -2991,10 +3227,15 @@ const ManualChat = () => {
                                           : "none",
                                         zIndex: 5,
                                         cursor: drawingTool === "eraser" ? getEraserCursor() : "default",
+                                        touchAction: "manipulation",
+                                        userSelect: "none"
                                       }}
                                       onMouseDown={handleShapeMouseDown}
                                       onMouseMove={handleShapeMouseMove}
                                       onMouseUp={handleShapeMouseUp}
+                                      onTouchStart={handleShapeMouseDown}
+                                      onTouchMove={handleShapeMouseMove}
+                                      onTouchEnd={handleShapeMouseUp}
                                     />
 
                                     {/* Text Overlay Canvas */}
@@ -3005,10 +3246,24 @@ const ManualChat = () => {
                                       className="position-absolute top-0 start-0"
                                       style={{
                                         pointerEvents: isAddingText ? "auto" : "none",
-                                        zIndex: 10,
+                                        zIndex: isAddingText ? 15 : 10,
                                         cursor: isAddingText ? "crosshair" : "default",
+                                        touchAction: isAddingText ? "auto" : "none",
+                                        userSelect: "none",
+                                        backgroundColor: isAddingText ? "rgba(0,0,0,0.1)" : "transparent"
                                       }}
                                       onClick={handleCanvasClick}
+                                      onTouchStart={(e) => {
+                                        // Only handle touch if not clicking on text input
+                                        const target = e.target
+                                        const isTextInput = target.closest('.form-control') || target.closest('.input-group')
+                                        
+                                        if (!isTextInput) {
+                                          e.preventDefault()
+                                          e.stopPropagation()
+                                          handleCanvasClick(e)
+                                        }
+                                      }}
                                     />
 
                                     {/* Interactive Text Elements */}
@@ -3047,8 +3302,13 @@ const ManualChat = () => {
                                           overflow: "visible",
                                         }}
                                         onMouseDown={(e) => handleTextMouseDown(e, element.id)}
+                                        onTouchStart={(e) => handleTextMouseDown(e, element.id)}
                                         onDoubleClick={() => handleTextDoubleClick(element.id)}
                                         onClick={(e) => {
+                                          e.stopPropagation()
+                                          setSelectedTextId(element.id)
+                                        }}
+                                        onTouchEnd={(e) => {
                                           e.stopPropagation()
                                           setSelectedTextId(element.id)
                                         }}
@@ -3095,8 +3355,16 @@ const ManualChat = () => {
                                           left: textPosition.x * zoomLevel,
                                           zIndex: 20,
                                         }}
-                                      >
-                                        <div className="input-group shadow-lg">
+                                        onClick={(e) => e.stopPropagation()}
+                                        onTouchStart={(e) => e.stopPropagation()}
+                                        onTouchEnd={(e) => e.stopPropagation()}
+                                        >
+                                          <div 
+                                            className="input-group shadow-lg"
+                                            onClick={(e) => e.stopPropagation()}
+                                            onTouchStart={(e) => e.stopPropagation()}
+                                            onTouchEnd={(e) => e.stopPropagation()}
+                                          >
                                           <input
                                             type="text"
                                             autoFocus
@@ -3120,6 +3388,8 @@ const ManualChat = () => {
                                               }
                                             }}
                                             onClick={(e) => e.stopPropagation()}
+                                            onTouchStart={(e) => e.stopPropagation()}
+                                            onTouchEnd={(e) => e.stopPropagation()}
                                             className="form-control border-primary"
                                             style={{
                                               fontSize: `${textSettings.fontSize * zoomLevel}px`,
@@ -3128,7 +3398,8 @@ const ManualChat = () => {
                                               fontStyle: textSettings.fontStyle,
                                               color: textSettings.color,
                                               backgroundColor: textSettings.backgroundColor,
-                                              minWidth: "250px",
+                                              minWidth: isMobileView ? "200px" : "250px",
+                                              maxWidth: isMobileView ? "90vw" : "none",
                                               borderWidth: "2px",
                                             }}
                                             placeholder="Type your text and press Enter..."
@@ -3173,14 +3444,14 @@ const ManualChat = () => {
                           {/* Text Editing Modal */}
                           {isEditingText && (
                             <div
-                              className="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center bg-dark bg-opacity-75"
+                              className="position-fixed top-0 start-0 w-100 h-100 forDisplayFlex align-items-center justify-content-center bg-dark bg-opacity-75"
                               style={{ zIndex: 9999 }}
                             >
                               <div
                                 className="bg-white rounded-3 shadow-lg shadow p-4 mx-3"
                                 style={{ minWidth: "350px", maxWidth: "90vw" }}
                               >
-                                <div className="d-flex align-items-center gap-2 mb-3">
+                                <div className="forDisplayFlex align-items-center gap-2 mb-3">
                                   <div className="bg-primary text-white rounded-circle p-2">
                                     <MdPinEnd />
                                   </div>
@@ -3214,10 +3485,10 @@ const ManualChat = () => {
                                 </div>
                                 {/* Text Settings Section */}
                                 <div className="mb-3">
-                                  <h6 className="text-black mb-3 d-flex align-items-center gap-2">
+                                  <h6 className="text-black mb-3 forDisplayFlex align-items-center gap-2">
                                     <MdPinEnd className="text-warning" /> Text Settings
                                   </h6>
-                                  <div className="d-flex flex-column gap-3">
+                                  <div className="forDisplayFlex flex-column gap-3">
                                     <div>
                                       <label className="form-label text-black small">Text Color</label>
                                       <input
@@ -3265,7 +3536,7 @@ const ManualChat = () => {
                                     </div>
                                   </div>
                                 </div>
-                                <div className="d-flex gap-2 justify-content-end">
+                                <div className="forDisplayFlex gap-2 justify-content-end">
                                   <button
                                     className="btn btn-success px-4"
                                     onClick={saveTextEdit}
