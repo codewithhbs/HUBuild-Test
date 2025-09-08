@@ -3,7 +3,7 @@ import axios from 'axios';
 import { toast } from 'react-hot-toast';
 import JoditEditor from 'jodit-react';
 
-const EConsultantTerm = () => {
+const EVision = () => {
   const [text, setText] = useState('');
   const [typse, setType] = useState('');
   const [id, setId] = useState(null);
@@ -120,7 +120,7 @@ const EConsultantTerm = () => {
   return (
     <div className="max-w-4xl mx-auto p-6">
       <h1 className="text-2xl font-bold mb-4">
-        Edit Term: <span className="text-blue-600">Consultant T&C</span>
+        Edit Term: <span className="text-blue-600">Our Vision</span>
       </h1>
 
       <form onSubmit={handleSubmit}>
@@ -136,31 +136,30 @@ const EConsultantTerm = () => {
         </div>
 
         <button
-  type="submit"
-  disabled={loading || !id}
-  className={`mt-4 btn btn-lg d-flex align-items-center gap-2 ${
-    loading || !id ? 'btn-secondary disabled' : 'btn-primary'
-  }`}
->
-  {loading ? (
-    <>
-      <span
-        className="spinner-border spinner-border-sm"
-        role="status"
-        aria-hidden="true"
-      ></span>
-      Updating...
-    </>
-  ) : (
-    <>
-      <i className="bi bi-save"></i> {/* Bootstrap Icons (optional) */}
-      Update Term
-    </>
-  )}
-</button>
+          type="submit"
+          disabled={loading || !id}
+          className={`mt-4 btn btn-lg d-flex align-items-center gap-2 ${loading || !id ? 'btn-secondary disabled' : 'btn-primary'
+            }`}
+        >
+          {loading ? (
+            <>
+              <span
+                className="spinner-border spinner-border-sm"
+                role="status"
+                aria-hidden="true"
+              ></span>
+              Updating...
+            </>
+          ) : (
+            <>
+              <i className="bi bi-save"></i> {/* Bootstrap Icons (optional) */}
+              Update Term
+            </>
+          )}
+        </button>
       </form>
     </div>
   );
 };
 
-export default EConsultantTerm;
+export default EVision

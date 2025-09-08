@@ -81,8 +81,13 @@ const _nav = [
       },
       {
         component: CNavItem,
-        name: 'Consultant Term',
+        name: 'Consultant T&C',
         to: '/term/edit_consultant_term?type=consultant term',
+      },
+      {
+        component: CNavItem,
+        name: 'Our Vision',
+        to: '/term/edit_our-vision?type=vision',
       },
       {
         component: CNavItem,
