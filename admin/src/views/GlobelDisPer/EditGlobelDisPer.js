@@ -5,7 +5,7 @@ import toast from 'react-hot-toast';
 import Form from '../../components/Form/Form';
 
 const EditGlobelDisPer = () => {
-    const id = '68637e52a2c584e1cba74f8a';
+    const id = '68be8d9acdf4a64462c75530';
     const [loading, setLoading] = useState(false);
     const [discountPercent, setDiscountPercent] = useState('');
 
