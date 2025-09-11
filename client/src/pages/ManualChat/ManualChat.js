@@ -3070,7 +3070,7 @@ const ManualChat = () => {
                                     <MdBrush size={isMobileView ? 18 : 20} />
                                   </button>
 
-                                  <button
+                                  {/* <button
                                     className={`btn ${drawingTool === "eraser" ? "btn-info text-dark" : "btn-outline-info"}`}
                                     onClick={() => {
                                       setDrawingTool("eraser")
@@ -3086,7 +3086,7 @@ const ManualChat = () => {
                                     title="Eraser Tool - Remove drawings"
                                   >
                                     <MdClear size={isMobileView ? 18 : 20} />
-                                  </button>
+                                  </button> */}
 
                                   <button
                                     className={`btn ${drawingTool === "rectangle" ? "btn-info text-dark" : "btn-outline-info"}`}
