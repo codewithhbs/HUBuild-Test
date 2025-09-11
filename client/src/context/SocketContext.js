@@ -16,8 +16,8 @@ export const SocketProvider = ({ children }) => {
         reconnectionAttempts: 5,
         reconnectionDelay: 1000,
         timeout: 20000,
-        pingTimeout: 25000,
-        pingInterval: 20000,
+        pingTimeout: 30000,
+        pingInterval: 25000,
     }), []);
 
     useEffect(() => {
