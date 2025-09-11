@@ -62,6 +62,7 @@ const io = new Server(server, {
         methods: ["GET", "POST"],
         credentials: true,
     },
+    maxHttpBufferSize: 5 * 1024 * 1024,
 });
 
 // Make socket.io available to routes
