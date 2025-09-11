@@ -10,6 +10,7 @@ import {
   MdPhone,
   MdExpandMore,
   MdUndo,
+  MdRedo,
   MdClear,
   MdBrush,
   MdPinEnd,
@@ -233,41 +234,111 @@ const ManualChat = () => {
 
   const socket = useSocket()
 
-  // Debounced saveAnnotationState to prevent rapid state saves
-  const saveAnnotationState = useCallback(
+  // Stable refs to avoid stale closures in debounced saver
+  const annotationHistoryIndexRef = useRef(-1)
+  const suppressHistoryRef = useRef(false)
+  const stateForHistoryRef = useRef({
+    textElements: [],
+    shapes: [],
+    zoomLevel: 1,
+    panOffset: { x: 0, y: 0 },
+    brushColor: "#000000",
+    brushRadius: 2,
+    eraserRadius: 10,
+    drawingTool: "brush",
+    textSettings: {
+      fontSize: 18,
+      color: "#000000",
+      fontFamily: "Arial",
+      fontWeight: "normal",
+      fontStyle: "normal",
+      textDecoration: "none",
+      textAlign: "left",
+      backgroundColor: "transparent",
+      padding: 4,
+    },
+  })
+
+  useEffect(() => {
+    annotationHistoryIndexRef.current = annotationHistoryIndex
+  }, [annotationHistoryIndex])
+
+  useEffect(() => {
+    stateForHistoryRef.current = {
+      textElements,
+      shapes,
+      zoomLevel,
+      panOffset,
+      brushColor,
+      brushRadius,
+      eraserRadius,
+      drawingTool,
+      textSettings,
+    }
+  }, [textElements, shapes, zoomLevel, panOffset, brushColor, brushRadius, eraserRadius, drawingTool, textSettings])
+
+  // Stable debounced save function that reads from refs and avoids auto-increment loops
+  const saveAnnotationState = useRef(
     debounce(() => {
+      if (suppressHistoryRef.current) return
+      console.log("Saving annotation state...")
+
+      const {
+        textElements: te,
+        shapes: sh,
+        zoomLevel: zl,
+        panOffset: po,
+        brushColor: bc,
+        brushRadius: br,
+        eraserRadius: er,
+        drawingTool: dt,
+        textSettings: ts,
+      } = stateForHistoryRef.current
+
       const canvasVector = canvasRef.current ? canvasRef.current.getSaveData() : null
-      const canvasRaster = hasErased
-        ? canvasRef.current
-          ? canvasRef.current.canvas.drawing.toDataURL("image/png")
-          : null
+      const canvasRaster = hasErased && canvasRef.current
+        ? canvasRef.current.canvas.drawing.toDataURL("image/png")
         : null
+
       const currentState = {
         canvasVector,
         canvasRaster,
-        textElements: [...textElements],
-        shapes: [...shapes],
-        zoom: zoomLevel,
+        textElements: [...te],
+        shapes: [...sh],
+        zoom: zl,
+        panOffset: { ...po },
+        brushColor: bc,
+        brushRadius: br,
+        eraserRadius: er,
+        drawingTool: dt,
+        textSettings: { ...ts },
       }
 
-      // Only add to history if the state has changed
-      if (
-        annotationHistoryIndex === -1 ||
-        JSON.stringify(annotationHistory[annotationHistoryIndex]) !== JSON.stringify(currentState)
-      ) {
-        setAnnotationHistory((prev) => {
-          // Trim history to current index to avoid orphaned future states
-          const newHistory = prev.slice(0, annotationHistoryIndex + 1)
-          newHistory.push(currentState)
-          return newHistory
-        })
-        setAnnotationHistoryIndex((prev) => prev + 1)
-      }
-      // Reset hasErased if no raster
+      setAnnotationHistory((prev) => {
+        const baseIndex = Math.min(
+          Math.max(annotationHistoryIndexRef.current, -1),
+          prev.length - 1,
+        )
+        const effective = baseIndex >= 0 ? prev.slice(0, baseIndex + 1) : []
+        const last = effective.length > 0 ? effective[effective.length - 1] : null
+        const hasChanged =
+          !last || JSON.stringify(last) !== JSON.stringify(currentState)
+        if (!hasChanged) return prev
+
+        const next = [...effective, currentState]
+        const capped = next.slice(-50)
+        const nextIndex = capped.length - 1
+        if (annotationHistoryIndexRef.current !== nextIndex) {
+          annotationHistoryIndexRef.current = nextIndex
+          setAnnotationHistoryIndex(nextIndex)
+        }
+        console.log("New history length:", capped.length, "index:", nextIndex)
+        return capped
+      })
+
       if (!currentState.canvasRaster) setHasErased(false)
-    }, 100), // Reduced to 100ms for faster response
-    [textElements, shapes, annotationHistoryIndex],
-  )
+    }, 150)
+  ).current
 
   // Scale canvas drawings when zoom changes
   useEffect(() => {
@@ -290,6 +361,7 @@ const ManualChat = () => {
 
   // Handle zoom changes - preserve all content properly
   useEffect(() => {
+    if (suppressHistoryRef.current) return
     if (canvasRef.current && isAnnotating) {
       const oldZoom = prevZoomRef.current;
       if (zoomLevel !== oldZoom) {
@@ -1418,6 +1490,7 @@ const ManualChat = () => {
 
   // Modified handleClear to reset history
   const handleClear = useCallback(() => {
+    suppressHistoryRef.current = true
     if (canvasRef.current) {
       canvasRef.current.clear()
     }
@@ -1426,29 +1499,75 @@ const ManualChat = () => {
     setCurrentShape(null)
     setAnnotationHistory([])
     setAnnotationHistoryIndex(-1)
+    annotationHistoryIndexRef.current = -1
     setHasErased(false)
-    saveAnnotationState()
+    if (typeof saveAnnotationState === "function") {
+      // ensure not to immediately re-add after clear
+      setTimeout(() => {
+        suppressHistoryRef.current = false
+      }, 0)
+    } else {
+      suppressHistoryRef.current = false
+    }
   }, [saveAnnotationState])
 
-  // Modified handleUndo to reliably restore one step back
+  // Enhanced handleUndo to work with all annotation tools
   const handleUndo = useCallback(() => {
+    console.log("Undo called - History index:", annotationHistoryIndex, "History length:", annotationHistory.length)
+    
+    // Correct index if out of bounds
+    if (annotationHistoryIndex > annotationHistory.length - 1) {
+      console.log("Correcting index from", annotationHistoryIndex, "to", annotationHistory.length - 1)
+      setAnnotationHistoryIndex(annotationHistory.length - 1)
+      return
+    }
+    
     if (annotationHistoryIndex <= 0) {
+      console.log("Clearing everything - at beginning of history")
+      // Clear everything if we're at the beginning
+      suppressHistoryRef.current = true
       if (canvasRef.current) {
         canvasRef.current.clear()
       }
       setTextElements([])
       setShapes([])
-      setAnnotationHistoryIndex(0)
+      setAnnotationHistoryIndex(-1)  // Set to -1 for empty state
+      setBrushColor("#000000")
+      setBrushRadius(2)
+      setEraserRadius(10)
+      setDrawingTool("brush")
+      setZoomLevel(1)
+      setPanOffset({ x: 0, y: 0 })
+      setTextSettings({
+        fontSize: 18,
+        color: "#000000",
+        fontFamily: "Arial",
+        fontWeight: "normal",
+        fontStyle: "normal",
+        textDecoration: "none",
+        textAlign: "left",
+        backgroundColor: "transparent",
+        padding: 4,
+      })
+      annotationHistoryIndexRef.current = -1
+      suppressHistoryRef.current = false
       return
     }
 
     const previousIndex = annotationHistoryIndex - 1
     const previousState = annotationHistory[previousIndex]
 
+    // Restore zoom/pan before canvas so coordinates match
+    suppressHistoryRef.current = true
+    if (previousState.zoom) setZoomLevel(previousState.zoom)
+    if (previousState.panOffset) setPanOffset(previousState.panOffset)
+
+    // Restore canvas state
     if (canvasRef.current) {
       const drawingCanvas = canvasRef.current.canvas.drawing
       const ctx = drawingCanvas.getContext("2d")
       ctx.clearRect(0, 0, drawingCanvas.width, drawingCanvas.height)
+      
       if (previousState.canvasRaster) {
         const img = new Image()
         img.src = previousState.canvasRaster
@@ -1461,14 +1580,6 @@ const ManualChat = () => {
         try {
           const saveData = JSON.parse(previousState.canvasVector)
           if (saveData) {
-            const scaleFactor = zoomLevel / previousState.zoom
-            saveData.lines.forEach((line) => {
-              line.points.forEach((p) => {
-                p.x *= scaleFactor
-                p.y *= scaleFactor
-              })
-              line.brushRadius *= scaleFactor
-            })
             canvasRef.current.loadSaveData(JSON.stringify(saveData), true)
             setHasErased(false)
           }
@@ -1480,24 +1591,52 @@ const ManualChat = () => {
       }
     }
 
+    // Restore all annotation states
     setTextElements([...previousState.textElements])
     setShapes([...previousState.shapes])
+    
+    // Restore tool settings
+    if (previousState.brushColor) setBrushColor(previousState.brushColor)
+    if (previousState.brushRadius) setBrushRadius(previousState.brushRadius)
+    if (previousState.eraserRadius) setEraserRadius(previousState.eraserRadius)
+    if (previousState.drawingTool) setDrawingTool(previousState.drawingTool)
+    // zoom & pan already restored above to ensure correct positions
+    if (previousState.textSettings) setTextSettings(previousState.textSettings)
+    
     setAnnotationHistoryIndex(previousIndex)
+    annotationHistoryIndexRef.current = previousIndex
+    suppressHistoryRef.current = false
   }, [annotationHistory, annotationHistoryIndex, zoomLevel])
 
-  // Add handleRedo to restore undone steps
+  // Enhanced handleRedo to restore undone steps for all annotation tools
   const handleRedo = useCallback(() => {
+    console.log("Redo called - History index:", annotationHistoryIndex, "History length:", annotationHistory.length)
+    
+    // Correct index if out of bounds
+    if (annotationHistoryIndex < -1) {
+      setAnnotationHistoryIndex(-1)
+      return
+    }
+    
     if (annotationHistoryIndex >= annotationHistory.length - 1) {
+      console.log("Cannot redo - at end of history")
       return
     }
 
     const nextIndex = annotationHistoryIndex + 1
     const nextState = annotationHistory[nextIndex]
 
+    // Restore zoom/pan before canvas so coordinates match
+    suppressHistoryRef.current = true
+    if (nextState.zoom) setZoomLevel(nextState.zoom)
+    if (nextState.panOffset) setPanOffset(nextState.panOffset)
+
+    // Restore canvas state
     if (canvasRef.current) {
       const drawingCanvas = canvasRef.current.canvas.drawing
       const ctx = drawingCanvas.getContext("2d")
       ctx.clearRect(0, 0, drawingCanvas.width, drawingCanvas.height)
+      
       if (nextState.canvasRaster) {
         const img = new Image()
         img.src = nextState.canvasRaster
@@ -1510,14 +1649,6 @@ const ManualChat = () => {
         try {
           const saveData = JSON.parse(nextState.canvasVector)
           if (saveData) {
-            const scaleFactor = zoomLevel / nextState.zoom
-            saveData.lines.forEach((line) => {
-              line.points.forEach((p) => {
-                p.x *= scaleFactor
-                p.y *= scaleFactor
-              })
-              line.brushRadius *= scaleFactor
-            })
             canvasRef.current.loadSaveData(JSON.stringify(saveData), true)
             setHasErased(false)
           }
@@ -1529,9 +1660,21 @@ const ManualChat = () => {
       }
     }
 
+    // Restore all annotation states
     setTextElements([...nextState.textElements])
     setShapes([...nextState.shapes])
+    
+    // Restore tool settings
+    if (nextState.brushColor) setBrushColor(nextState.brushColor)
+    if (nextState.brushRadius) setBrushRadius(nextState.brushRadius)
+    if (nextState.eraserRadius) setEraserRadius(nextState.eraserRadius)
+    if (nextState.drawingTool) setDrawingTool(nextState.drawingTool)
+    // zoom & pan already restored above to ensure correct positions
+    if (nextState.textSettings) setTextSettings(nextState.textSettings)
+    
     setAnnotationHistoryIndex(nextIndex)
+    annotationHistoryIndexRef.current = nextIndex
+    suppressHistoryRef.current = false
   }, [annotationHistory, annotationHistoryIndex, zoomLevel])
 
   // Handle click outside text elements to unselect
@@ -1588,6 +1731,47 @@ const ManualChat = () => {
     }
   }, [isAddingText])
 
+  // Add keyboard shortcuts for undo/redo
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      // Only handle shortcuts when modal is open and user is not typing in input fields
+      if (!showModal) return
+      
+      const isInputFocused = document.activeElement?.tagName === 'INPUT' || 
+                           document.activeElement?.tagName === 'TEXTAREA' ||
+                           document.activeElement?.contentEditable === 'true'
+      
+      if (isInputFocused) return
+
+      // Ctrl+Z or Cmd+Z for undo
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault()
+        handleUndo()
+      }
+      
+      // Ctrl+Y or Cmd+Y for redo (or Ctrl+Shift+Z)
+      if (((e.ctrlKey || e.metaKey) && e.key === 'y') || 
+          ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'z')) {
+        e.preventDefault()
+        handleRedo()
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [showModal, handleUndo, handleRedo])
+
+  // Save initial state when annotation mode is enabled
+  useEffect(() => {
+    if (isAnnotating && showModal && canvasRef.current) {
+      // Small delay to ensure canvas is ready
+      const timer = setTimeout(() => {
+        saveAnnotationState()
+      }, 200)
+      return () => clearTimeout(timer)
+    }
+  }, [isAnnotating, showModal, saveAnnotationState])
+
   useEffect(() => {
     if (canvasRef.current) {
       const canvas = canvasRef.current.canvas.drawing;
@@ -1640,6 +1824,10 @@ const ManualChat = () => {
     setShapes([])
     setZoomLevel(1)
     setPanOffset({ x: 0, y: 0 })
+    // Reset annotation history
+    setAnnotationHistory([])
+    setAnnotationHistoryIndex(-1)
+    setHasErased(false)
   }
 
   // Handle modal close
@@ -2731,6 +2919,10 @@ const ManualChat = () => {
                                   setIsAnnotating(true)
                                   // Optional: Reset zoom when entering annotation mode
                                   resetZoom()
+                                  // Save initial state when entering annotation mode
+                                  setTimeout(() => {
+                                    saveAnnotationState()
+                                  }, 100)
                                 }}
                                 className="btn btn-light btn-sm btn-sm align-items-center gap-1"
                                 style={{ display: "flex" }}
@@ -3118,7 +3310,37 @@ const ManualChat = () => {
                                       justifyContent: "center"
                                     }}
                                   >
+                                    <MdZoomIn size={isMobileView ? 18 : 20} />
+                                  </button>
+                                  <button
+                                    className="btn btn-outline-primary btn-sm"
+                                    onClick={handleUndo}
+                                    disabled={annotationHistoryIndex <= 0}
+                                    title="Undo (Ctrl+Z)"
+                                    style={{
+                                      width: isMobileView ? "44px" : "auto",
+                                      height: isMobileView ? "44px" : "auto",
+                                      display: "flex",
+                                      alignItems: "center",
+                                      justifyContent: "center"
+                                    }}
+                                  >
                                     <MdUndo size={isMobileView ? 18 : 20} />
+                                  </button>
+                                  <button
+                                    className="btn btn-outline-primary btn-sm"
+                                    onClick={handleRedo}
+                                    disabled={annotationHistoryIndex >= annotationHistory.length - 1}
+                                    title="Redo (Ctrl+Y)"
+                                    style={{
+                                      width: isMobileView ? "44px" : "auto",
+                                      height: isMobileView ? "44px" : "auto",
+                                      display: "flex",
+                                      alignItems: "center",
+                                      justifyContent: "center"
+                                    }}
+                                  >
+                                    <MdRedo size={isMobileView ? 18 : 20} />
                                   </button>
                                   <button
                                     className="btn btn-outline-primary btn-sm"
@@ -3141,6 +3363,16 @@ const ManualChat = () => {
                                     : "Tip: Hold Ctrl + Click and drag to pan the image"
                                   }
                                 </p>
+                                {/* Debug info for undo/redo */}
+                                <div className="text-muted small mt-1">
+                                  History: {annotationHistoryIndex + 1}/{annotationHistory.length} 
+                                  {annotationHistory.length > 0 && (
+                                    <span className="ms-2">
+                                      (Undo: {annotationHistoryIndex > 0 ? "✓" : "✗"}, 
+                                      Redo: {annotationHistoryIndex < annotationHistory.length - 1 ? "✓" : "✗"})
+                                    </span>
+                                  )}
+                                </div>
                               </div>
                             </div>
                           )}
@@ -3192,11 +3424,13 @@ const ManualChat = () => {
                                     userSelect: "none"
                                   }}
                                   onClick={isAddingText ? handleCanvasClick : undefined}
-                                  onTouchStart={isAddingText ? (e) => {
-                                    e.preventDefault()
-                                    e.stopPropagation()
-                                    handleCanvasClick(e)
-                                  } : undefined}
+                                  onTouchStart={(e) => {
+                                    if (isAddingText) {
+                                      e.preventDefault()
+                                      e.stopPropagation()
+                                      handleCanvasClick(e)
+                                    }
+                                  }}
                                 >
                                   <>
                                     {/* Drawing Canvas */}
@@ -3211,6 +3445,10 @@ const ManualChat = () => {
                                       lazyRadius={0}
                                       className="shadow rounded"
                                       disabled={drawingTool !== "brush"}
+                                      onChange={() => {
+                                        // Save state when drawing changes
+                                        saveAnnotationState()
+                                      }}
                                     />
 
                                     {/* Shape Canvas */}
