@@ -370,15 +370,23 @@ const ManualChat = () => {
         if (saveDataStr && saveDataStr !== '{"lines":[]}') {
           try {
             const saveData = JSON.parse(saveDataStr);
-            const scaleFactor = zoomLevel / oldZoom;
-            saveData.lines.forEach((line) => {
-              line.points.forEach((p) => {
-                p.x *= scaleFactor;
-                p.y *= scaleFactor;
+            if (saveData && Array.isArray(saveData.lines)) {
+              const scaleFactor = zoomLevel / oldZoom;
+              saveData.lines.forEach((line) => {
+                if (line && Array.isArray(line.points)) {
+                  line.points.forEach((pt) => {
+                    if (pt && typeof pt.x === 'number' && typeof pt.y === 'number') {
+                      pt.x *= scaleFactor;
+                      pt.y *= scaleFactor;
+                    }
+                  });
+                }
+                if (line && typeof line.brushRadius === 'number') {
+                  line.brushRadius *= scaleFactor;
+                }
               });
-              line.brushRadius *= scaleFactor;
-            });
-            canvasRef.current.loadSaveData(JSON.stringify(saveData), true);
+              canvasRef.current.loadSaveData(JSON.stringify(saveData), true);
+            }
           } catch (e) {
             console.error("Failed to scale canvas data", e);
           }
@@ -2952,8 +2960,8 @@ const ManualChat = () => {
                     <Modal.Header closeButton style={{ backgroundColor: "#EDBE3A" }} className="border-0 text-white">
                       <div style={{ display: "flex" }} className="w-100 align-items-center justify-content-between">
                         <Modal.Title className="forDisplayFlex align-items-center gap-2 fw-bold fs-5 mb-0">
-                          <MdBrush className="fs-4" />
-                          {isAnnotating ? "Annotate Image" : "View Image"}
+                          <MdBrush style={{ fontSize: isMobileView ? 18 : 20 }} />
+                          {isAnnotating ? "Image" : "View Image"}
                         </Modal.Title>
 
                         <div className="forDisplayFlex align-items-center gap-2">
@@ -2995,7 +3003,7 @@ const ManualChat = () => {
                             style={{ display: "flex" }}
                             onClick={handleBase64Download}
                           >
-                            <MdAttachment className="fs-6" />
+                            <MdAttachment size={isMobileView ? 14 : 18} />
                             <span className="d-none d-lg-inline">Download</span>
                           </button>
 
@@ -3006,7 +3014,7 @@ const ManualChat = () => {
                               style={{ display: "flex" }}
                               disabled={loading}
                             >
-                              <MdSend className="fs-6" />
+                              <MdSend size={isMobileView ? 14 : 18} />
                               {loading ? (
                                 <>
                                   <span
@@ -3032,12 +3040,14 @@ const ManualChat = () => {
                           {isAnnotating && (
                             <div
                               className="tools-panel text-white p-3 order-1 tool-height order-lg-0"
-                              style={{
+                              style={{ 
                                 width: isMobileView ? "100%" : "340px",
                                 flex: isMobileView ? "0 0 auto" : "0 0 340px",
                                 flexShrink: 0,
-                                maxHeight: isMobileView ? "40vh" : "none",
-                                overflowY: "auto"
+                                maxHeight: isMobileView ? "50vh" : "none",
+                                overflowY: "auto",
+                                fontSize: isMobileView ? "0.85rem" : undefined,
+                                gap: isMobileView ? "6px" : undefined
                               }}
                             >
                               {/* Drawing Tools Section */}
@@ -3059,15 +3069,15 @@ const ManualChat = () => {
                                       }
                                     }}
                                     style={{
-                                      width: isMobileView ? "44px" : "45px",
-                                      height: isMobileView ? "44px" : "45px",
+                                      width: isMobileView ? "36px" : "45px",
+                                      height: isMobileView ? "36px" : "45px",
                                       display: "flex",
                                       alignItems: "center",
                                       justifyContent: "center",
                                     }}
                                     title="Brush Tool - Draw freehand"
                                   >
-                                    <MdBrush size={isMobileView ? 18 : 20} />
+                                    <MdBrush size={isMobileView ? 14 : 20} />
                                   </button>
 
                                   {/* <button
@@ -3077,8 +3087,8 @@ const ManualChat = () => {
                                       if (isAddingText) setIsAddingText(false)
                                     }}
                                     style={{
-                                      width: isMobileView ? "44px" : "45px",
-                                      height: isMobileView ? "44px" : "45px",
+                                      width: isMobileView ? "36px" : "45px",
+                                      height: isMobileView ? "36px" : "45px",
                                       display: "flex",
                                       alignItems: "center",
                                       justifyContent: "center",
@@ -3095,15 +3105,15 @@ const ManualChat = () => {
                                       if (isAddingText) setIsAddingText(false)
                                     }}
                                     style={{
-                                      width: isMobileView ? "44px" : "45px",
-                                      height: isMobileView ? "44px" : "45px",
+                                      width: isMobileView ? "36px" : "45px",
+                                      height: isMobileView ? "36px" : "45px",
                                       display: "flex",
                                       alignItems: "center",
                                       justifyContent: "center",
                                     }}
                                     title="Rectangle Tool - Draw rectangles"
                                   >
-                                    <MdRectangle size={isMobileView ? 18 : 20} />
+                                    <MdRectangle size={isMobileView ? 14 : 20} />
                                   </button>
 
                                   <button
@@ -3113,15 +3123,15 @@ const ManualChat = () => {
                                       if (isAddingText) setIsAddingText(false)
                                     }}
                                     style={{
-                                      width: isMobileView ? "44px" : "45px",
-                                      height: isMobileView ? "44px" : "45px",
+                                      width: isMobileView ? "36px" : "45px",
+                                      height: isMobileView ? "36px" : "45px",
                                       display: "flex",
                                       alignItems: "center",
                                       justifyContent: "center",
                                     }}
                                     title="Circle Tool - Draw circles"
                                   >
-                                    <MdCircle size={isMobileView ? 18 : 20} />
+                                    <MdCircle size={isMobileView ? 14 : 20} />
                                   </button>
 
                                   <button
@@ -3131,15 +3141,15 @@ const ManualChat = () => {
                                       if (isAddingText) setIsAddingText(false)
                                     }}
                                     style={{
-                                      width: isMobileView ? "44px" : "45px",
-                                      height: isMobileView ? "44px" : "45px",
+                                      width: isMobileView ? "36px" : "45px",
+                                      height: isMobileView ? "36px" : "45px",
                                       display: "flex",
                                       alignItems: "center",
                                       justifyContent: "center",
                                     }}
                                     title="Arrow Tool - Draw arrows"
                                   >
-                                    <MdArrowForward size={isMobileView ? 18 : 20} />
+                                    <MdArrowForward size={isMobileView ? 14 : 20} />
                                   </button>
 
                                   <button
@@ -3159,15 +3169,15 @@ const ManualChat = () => {
                                       }
                                     }}
                                     style={{
-                                      width: isMobileView ? "44px" : "45px",
-                                      height: isMobileView ? "44px" : "45px",
+                                      width: isMobileView ? "36px" : "45px",
+                                      height: isMobileView ? "36px" : "45px",
                                       display: "flex",
                                       alignItems: "center",
                                       justifyContent: "center",
                                     }}
                                     title="Text Tool - Add text"
                                   >
-                                    <TfiText size={isMobileView ? 18 : 20} />
+                                    <TfiText size={isMobileView ? 14 : 20} />
                                   </button>
 
                                   <button
@@ -3185,7 +3195,7 @@ const ManualChat = () => {
                                     }}
                                     title="Pan Tool - Drag to move"
                                   >
-                                    <Hand size={isMobileView ? 18 : 20} />
+                                    <Hand size={isMobileView ? 14 : 20} />
                                   </button>
                                 </div>
 
@@ -3196,14 +3206,13 @@ const ManualChat = () => {
                               </div>
 
                               {/* Brush Settings */}
-                              <div className="mb-4">
-                                <h6 className="text-black mb-3">
+                              <details className="mb-3" open={!isMobileView}>
+                                <summary className="text-black mb-2" style={{ cursor: "pointer", userSelect: "none", fontSize: isMobileView ? "0.95rem" : "1rem" }}>
                                   {drawingTool === "eraser" ? "Eraser Settings" : "Brush Settings"}
-                                </h6>
-
+                                </summary>
                                 <div className={`canvas-flex gap-3 ${isMobileView ? "flex-column" : ""}`}>
                                   {drawingTool !== "eraser" && (
-                                    <div className="mb-3">
+                                    <div className="mb-2">
                                       <label className="form-label text-black small">Color</label>
                                       <div className="d-flex align-items-center gap-2">
                                         <input
@@ -3211,16 +3220,16 @@ const ManualChat = () => {
                                           value={brushColor}
                                           onChange={(e) => setBrushColor(e.target.value)}
                                           className="form-control border form-control-color"
-                                          style={{
-                                            width: isMobileView ? "60px" : "50px",
-                                            height: isMobileView ? "44px" : "40px"
+                                          style={{ 
+                                            width: isMobileView ? "36px" : "50px",
+                                            height: isMobileView ? "32px" : "40px"
                                           }}
                                         />
                                       </div>
                                     </div>
                                   )}
 
-                                  <div className="mb-3">
+                                  <div className="mb-2">
                                     <label className="form-label text-black small">
                                       Size: {drawingTool === "eraser" ? eraserRadius : brushRadius}px
                                     </label>
@@ -3235,23 +3244,22 @@ const ManualChat = () => {
                                           : setBrushRadius(Number(e.target.value))
                                       }
                                       className="form-range"
-                                      style={{
-                                        height: isMobileView ? "8px" : "6px"
+                                      style={{ 
+                                        height: isMobileView ? "4px" : "6px"
                                       }}
                                     />
                                   </div>
                                 </div>
-                              </div>
+                              </details>
 
                               {/* Text Settings */}
                               {isAddingText && (
-                                <div className="mb-4">
-                                  <h6 className="text-black forDisplayFlex mb-3 align-items-center gap-2">
-                                    <MdPinEnd className="text-warning" /> Text Settings
-                                  </h6>
-
+                                <details className="mb-3" open={!isMobileView}>
+                                  <summary className="text-black forDisplayFlex mb-2 align-items-center gap-2" style={{ cursor: "pointer", userSelect: "none", fontSize: isMobileView ? "0.95rem" : "1rem" }}>
+                                    <MdPinEnd className="text-warning" size={isMobileView ? 14 : 20} /> Text Settings
+                                  </summary>
                                   <div className={`canvas-flex gap-3 ${isMobileView ? "flex-column" : ""}`}>
-                                    <div className="mb-3">
+                                    <div className="mb-2">
                                       <label className="form-label text-black small">Text Color</label>
                                       <input
                                         type="color"
@@ -3260,14 +3268,14 @@ const ManualChat = () => {
                                           setTextSettings((prev) => ({ ...prev, color: e.target.value }))
                                         }
                                         className="form-control border form-control-color w-100"
-                                        style={{
-                                          height: isMobileView ? "44px" : "40px",
+                                        style={{ 
+                                          height: isMobileView ? "32px" : "40px",
                                           width: isMobileView ? "100%" : "auto"
                                         }}
                                       />
                                     </div>
 
-                                    <div className="mb-3">
+                                    <div className="mb-2">
                                       <label className="form-label text-black small">
                                         Font Size: {textSettings.fontSize}px
                                       </label>
@@ -3283,14 +3291,14 @@ const ManualChat = () => {
                                           }))
                                         }
                                         className="form-range"
-                                        style={{
-                                          height: isMobileView ? "8px" : "6px"
+                                        style={{ 
+                                          height: isMobileView ? "4px" : "6px"
                                         }}
                                       />
                                     </div>
                                   </div>
 
-                                  <div className="mb-3">
+                                  <div className="mb-2">
                                     <label className="form-label text-black small">Font Family</label>
                                     <select
                                       value={textSettings.fontFamily}
@@ -3305,28 +3313,28 @@ const ManualChat = () => {
                                       <option value="Courier New">Courier New</option>
                                     </select>
                                   </div>
-                                </div>
+                                </details>
                               )}
 
                               {/* Zoom Controls */}
-                              <div className="mb-4">
-                                <h6 className="text-black mb-3 forDisplayFlex align-items-center gap-2">
-                                  <MdZoomIn className="text-primary" /> Zoom Controls
-                                </h6>
+                              <details className="mb-3" open={!isMobileView}>
+                                <summary className="text-black mb-2 forDisplayFlex align-items-center gap-2" style={{ cursor: "pointer", userSelect: "none", fontSize: isMobileView ? "0.95rem" : "1rem" }}>
+                                  <MdZoomIn className="text-primary" size={isMobileView ? 14 : 20} /> Zoom Controls
+                                </summary>
                                 <div className={`forDisplayFlex align-items-center gap-2 ${isMobileView ? "flex-wrap" : ""}`}>
                                   <button
                                     className="btn btn-outline-primary btn-sm"
                                     onClick={() => handleZoom(100)}
                                     title="Zoom In"
                                     style={{
-                                      width: isMobileView ? "44px" : "auto",
-                                      height: isMobileView ? "44px" : "auto",
+                                      width: isMobileView ? "36px" : "auto",
+                                      height: isMobileView ? "36px" : "auto",
                                       display: "flex",
                                       alignItems: "center",
                                       justifyContent: "center"
                                     }}
                                   >
-                                    <MdZoomIn size={isMobileView ? 18 : 20} />
+                                    <MdZoomIn size={isMobileView ? 14 : 20} />
                                   </button>
                                   <span className="badge bg-light text-dark" style={{ fontSize: isMobileView ? "0.7rem" : "0.75rem" }}>
                                     {Math.round(zoomLevel * 100)}%
@@ -3336,28 +3344,28 @@ const ManualChat = () => {
                                     onClick={() => handleZoom(-100)}
                                     title="Zoom Out"
                                     style={{
-                                      width: isMobileView ? "44px" : "auto",
-                                      height: isMobileView ? "44px" : "auto",
+                                      width: isMobileView ? "36px" : "auto",
+                                      height: isMobileView ? "36px" : "auto",
                                       display: "flex",
                                       alignItems: "center",
                                       justifyContent: "center"
                                     }}
                                   >
-                                    <MdZoomOut size={isMobileView ? 18 : 20} />
+                                    <MdZoomOut size={isMobileView ? 14 : 20} />
                                   </button>
                                   <button
                                     className="btn btn-outline-primary btn-sm"
                                     onClick={resetZoom}
                                     title="Reset to 100%"
                                     style={{
-                                      width: isMobileView ? "44px" : "auto",
-                                      height: isMobileView ? "44px" : "auto",
+                                      width: isMobileView ? "36px" : "auto",
+                                      height: isMobileView ? "36px" : "auto",
                                       display: "flex",
                                       alignItems: "center",
                                       justifyContent: "center"
                                     }}
                                   >
-                                    <MdZoomIn size={isMobileView ? 18 : 20} />
+                                    <MdZoomIn size={isMobileView ? 14 : 20} />
                                   </button>
                                   <button
                                     className="btn btn-outline-primary btn-sm"
@@ -3365,14 +3373,14 @@ const ManualChat = () => {
                                     disabled={annotationHistoryIndex <= 0}
                                     title="Undo (Ctrl+Z)"
                                     style={{
-                                      width: isMobileView ? "44px" : "auto",
-                                      height: isMobileView ? "44px" : "auto",
+                                      width: isMobileView ? "36px" : "auto",
+                                      height: isMobileView ? "36px" : "auto",
                                       display: "flex",
                                       alignItems: "center",
                                       justifyContent: "center"
                                     }}
                                   >
-                                    <MdUndo size={isMobileView ? 18 : 20} />
+                                    <MdUndo size={isMobileView ? 14 : 20} />
                                   </button>
                                   <button
                                     className="btn btn-outline-primary btn-sm"
@@ -3380,14 +3388,14 @@ const ManualChat = () => {
                                     disabled={annotationHistoryIndex >= annotationHistory.length - 1}
                                     title="Redo (Ctrl+Y)"
                                     style={{
-                                      width: isMobileView ? "44px" : "auto",
-                                      height: isMobileView ? "44px" : "auto",
+                                      width: isMobileView ? "36px" : "auto",
+                                      height: isMobileView ? "36px" : "auto",
                                       display: "flex",
                                       alignItems: "center",
                                       justifyContent: "center"
                                     }}
                                   >
-                                    <MdRedo size={isMobileView ? 18 : 20} />
+                                    <MdRedo size={isMobileView ? 14 : 20} />
                                   </button>
                                   <button
                                     className="btn btn-outline-primary btn-sm"
@@ -3401,7 +3409,7 @@ const ManualChat = () => {
                                       justifyContent: "center"
                                     }}
                                   >
-                                    <MdCenterFocusWeak size={isMobileView ? 18 : 20} />
+                                    <MdCenterFocusWeak size={isMobileView ? 14 : 20} />
                                   </button>
                                 </div>
                                 <p className="text-black small mt-2">
@@ -3420,7 +3428,7 @@ const ManualChat = () => {
                                     </span>
                                   )}
                                 </div>
-                              </div>
+                              </details>
                             </div>
                           )}
 

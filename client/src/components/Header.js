@@ -273,8 +273,8 @@ const Header = () => {
               {findToken && (
                 <li className="nav-item hub-header__nav-item">
                   <Link
-                    to="/manual-chat"
-                    className={`nav-link hub-header__nav-link ${active === "/manual-chat" ? 'hub-header__nav-link--active' : ''}`}
+                    to="/live-projects"
+                    className={`nav-link hub-header__nav-link ${active === "/live-projects" ? 'hub-header__nav-link--active' : ''}`}
                     onClick={handleLinkClick}
                   >
                     Live Projects
