@@ -3040,7 +3040,7 @@ const ManualChat = () => {
                           {isAnnotating && (
                             <div
                               className="tools-panel text-white p-3 order-1 tool-height order-lg-0"
-                              style={{ 
+                              style={{
                                 width: isMobileView ? "100%" : "340px",
                                 flex: isMobileView ? "0 0 auto" : "0 0 340px",
                                 flexShrink: 0,
@@ -3220,7 +3220,7 @@ const ManualChat = () => {
                                           value={brushColor}
                                           onChange={(e) => setBrushColor(e.target.value)}
                                           className="form-control border form-control-color"
-                                          style={{ 
+                                          style={{
                                             width: isMobileView ? "36px" : "50px",
                                             height: isMobileView ? "32px" : "40px"
                                           }}
@@ -3244,7 +3244,7 @@ const ManualChat = () => {
                                           : setBrushRadius(Number(e.target.value))
                                       }
                                       className="form-range"
-                                      style={{ 
+                                      style={{
                                         height: isMobileView ? "4px" : "6px"
                                       }}
                                     />
@@ -3268,7 +3268,7 @@ const ManualChat = () => {
                                           setTextSettings((prev) => ({ ...prev, color: e.target.value }))
                                         }
                                         className="form-control border form-control-color w-100"
-                                        style={{ 
+                                        style={{
                                           height: isMobileView ? "32px" : "40px",
                                           width: isMobileView ? "100%" : "auto"
                                         }}
@@ -3291,7 +3291,7 @@ const ManualChat = () => {
                                           }))
                                         }
                                         className="form-range"
-                                        style={{ 
+                                        style={{
                                           height: isMobileView ? "4px" : "6px"
                                         }}
                                       />
@@ -3915,7 +3915,8 @@ const ManualChat = () => {
                   </form>
                 </>
               ) : (
-                <div className="empty-chat-container">
+                <>
+                  {/* <div className="empty-chat-container">
                   <div className="empty-chat-content">
                     <div className="empty-chat-icon">
                       <svg width="120" height="120" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -3936,7 +3937,29 @@ const ManualChat = () => {
                       </button>
                     )}
                   </div>
-                </div>
+                </div> */}
+                  <div
+                    className="col-md-4 chat-list-container flex-column justify-content-center align-items-center bg-light"
+                    style={{ height: "100vh", textAlign: "center", display: 'flex' }}
+                  >
+                    <div
+                      className="spinner-border"
+                      role="status"
+                      style={{
+                        width: "3rem",
+                        height: "3rem",
+                        borderColor: "#eab936",
+                        borderRightColor: "transparent",
+                      }}
+                    >
+                      <span className="visually-hidden">Loading...</span>
+                    </div>
+                    <h5 className="fw-semibold mb-1 mt-4" style={{ color: "#eab936" }}>
+                      Fetching Live Projects...
+                    </h5>
+                    <small className="text-muted">Please wait while we prepare your workspace.</small>
+                  </div>
+                </>
               )}
             </div>
           )}
