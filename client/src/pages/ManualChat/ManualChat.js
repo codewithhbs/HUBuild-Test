@@ -1393,7 +1393,7 @@ const ManualChat = () => {
       backgroundImg.crossOrigin = "anonymous"
       backgroundImg.src = selectedImage.content
 
-      backgroundImg.onload = () => {
+      backgroundImg.onload = async () => {
         // Draw background image at original size
         ctx.drawImage(backgroundImg, 0, 0, width, height)
 
@@ -1440,19 +1440,62 @@ const ManualChat = () => {
           }
         })
 
-        // Compress to reduce payload size to avoid socket disconnects due to large frames
-        const mergedDataUrl = mergedCanvas.toDataURL("image/jpeg", 0.85)
+        // Downscale and compress to reduce payload size to avoid socket disconnects due to large frames
+        const estimateBytesFromDataUrl = (dataUrl) => {
+          const commaIdx = dataUrl.indexOf(',')
+          const b64 = commaIdx >= 0 ? dataUrl.substring(commaIdx + 1) : dataUrl
+          return Math.ceil(b64.length * 0.75)
+        }
+
+        const buildScaled = (targetMaxDim, quality) => {
+          const scale = Math.min(1, targetMaxDim / Math.max(width, height))
+          const c = document.createElement("canvas")
+          c.width = Math.round(width * scale)
+          c.height = Math.round(height * scale)
+          const cctx = c.getContext("2d")
+          cctx.drawImage(mergedCanvas, 0, 0, c.width, c.height)
+          return c.toDataURL("image/jpeg", quality)
+        }
+
+        const targets = [
+          { dim: 1280, quality: 0.8 },
+          { dim: 1280, quality: 0.7 },
+          { dim: 1024, quality: 0.7 },
+          { dim: 1024, quality: 0.6 },
+          { dim: 800, quality: 0.6 },
+          { dim: 800, quality: 0.5 },
+        ]
+
+        let uploadDataUrl = ""
+        for (const t of targets) {
+          uploadDataUrl = buildScaled(t.dim, t.quality)
+          if (estimateBytesFromDataUrl(uploadDataUrl) <= 700_000) break
+        }
 
         const annotatedFile = {
           name: `annotated_${selectedImage?.name || "image.jpg"}`,
           type: "image/jpeg",
-          content: mergedDataUrl,
+          content: uploadDataUrl,
         }
 
         const currentUserInfo = getSenderInfo(userData._id)
 
-        // Emit with acknowledgement and a timeout to detect failures
-        socket.timeout(15000).emit("manual_file_upload", {
+        // Ensure socket is connected before emit
+        if (!socket.connected) {
+          try {
+            socket.connect()
+            await new Promise((resolve, reject) => {
+              const to = setTimeout(() => reject(new Error("connect timeout")), 5000)
+              socket.once("connect", () => { clearTimeout(to); resolve() })
+            })
+          } catch (e) {
+            toast.error("Connection lost. Retrying upload failed.")
+            throw e
+          }
+        }
+
+        // Emit without ack timeout to avoid clearing acks upon reconnect
+        socket.emit("manual_file_upload", {
           room: currentRoomId,
           fileData: annotatedFile,
           senderId: userData._id,
@@ -1469,11 +1512,6 @@ const ManualChat = () => {
               timestamp: replyingTo.originalTimestamp,
             },
           }),
-        }, (err, response) => {
-          if (err) {
-            console.error("manual_file_upload ack timeout or error:", err)
-            toast.error("Upload timeout. Trying again...")
-          }
         })
 
         toast.success("Annotated image sent to chat!")
@@ -3032,7 +3070,7 @@ const ManualChat = () => {
                                     <MdBrush size={isMobileView ? 18 : 20} />
                                   </button>
 
-                                  {/* <button
+                                  <button
                                     className={`btn ${drawingTool === "eraser" ? "btn-info text-dark" : "btn-outline-info"}`}
                                     onClick={() => {
                                       setDrawingTool("eraser")
@@ -3048,7 +3086,7 @@ const ManualChat = () => {
                                     title="Eraser Tool - Remove drawings"
                                   >
                                     <MdClear size={isMobileView ? 18 : 20} />
-                                  </button> */}
+                                  </button>
 
                                   <button
                                     className={`btn ${drawingTool === "rectangle" ? "btn-info text-dark" : "btn-outline-info"}`}
