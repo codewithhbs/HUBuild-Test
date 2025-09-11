@@ -1440,17 +1440,19 @@ const ManualChat = () => {
           }
         })
 
-        const mergedDataUrl = mergedCanvas.toDataURL("image/png")
+        // Compress to reduce payload size to avoid socket disconnects due to large frames
+        const mergedDataUrl = mergedCanvas.toDataURL("image/jpeg", 0.85)
 
         const annotatedFile = {
-          name: `annotated_${selectedImage?.name || "image.png"}`,
-          type: "image/png",
+          name: `annotated_${selectedImage?.name || "image.jpg"}`,
+          type: "image/jpeg",
           content: mergedDataUrl,
         }
 
         const currentUserInfo = getSenderInfo(userData._id)
 
-        socket.emit("manual_file_upload", {
+        // Emit with acknowledgement and a timeout to detect failures
+        socket.timeout(15000).emit("manual_file_upload", {
           room: currentRoomId,
           fileData: annotatedFile,
           senderId: userData._id,
@@ -1467,6 +1469,11 @@ const ManualChat = () => {
               timestamp: replyingTo.originalTimestamp,
             },
           }),
+        }, (err, response) => {
+          if (err) {
+            console.error("manual_file_upload ack timeout or error:", err)
+            toast.error("Upload timeout. Trying again...")
+          }
         })
 
         toast.success("Annotated image sent to chat!")
