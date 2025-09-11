@@ -14,6 +14,7 @@ const router = require('./routes/routes');
 const Chat = require('./models/chatAndPayment.Model.js');
 const { chatStart, chatEnd, chatStartFromProvider, changeAvailableStatus } = require('./controllers/user.Controller');
 const { update_profile_status } = require('./controllers/call.controller');
+const { uploadToCloudinary } = require('./utils/Cloudnary');
 
 // Connect to database
 ConnectDB();
@@ -656,13 +657,23 @@ io.on('connection', (socket) => {
                 return;
             }
 
-            // Check file size
-            if (Buffer.byteLength(fileData.content, "base64") > MAX_FILE_SIZE) {
-                socket.emit("file_upload_error", {
-                    error: "File size exceeds maximum allowed (5MB)",
-                });
+            // Extract base64 payload and validate size against 5MB limit
+            let base64Payload = fileData.content;
+            const match = typeof base64Payload === 'string' ? base64Payload.match(/^data:(.*?);base64,(.*)$/) : null;
+            let buffer = null;
+            if (match && match[2]) {
+                buffer = Buffer.from(match[2], 'base64');
+            }
+            if (!buffer) {
+                throw new Error("Invalid image payload");
+            }
+            if (buffer.length > MAX_FILE_SIZE) {
+                socket.emit("file_upload_error", { error: "File size exceeds maximum allowed (5MB)" });
                 return;
             }
+
+            // Offload to Cloudinary to avoid storing large base64 blobs in MongoDB
+            const { imageUrl } = await uploadToCloudinary(buffer);
 
             // Create file message object
             const fileMessage = {
@@ -670,7 +681,7 @@ io.on('connection', (socket) => {
                 file: {
                     name: fileData.name,
                     type: fileData.type,
-                    content: fileData.content,
+                    content: imageUrl,
                 },
                 senderName: senderName,
                 senderRole: senderRole,
@@ -706,7 +717,7 @@ io.on('connection', (socket) => {
                 file: {
                     name: fileData.name,
                     type: fileData.type,
-                    content: fileData.content,
+                    content: imageUrl,
                 },
                 sender: senderId,
                 senderId: senderId,
