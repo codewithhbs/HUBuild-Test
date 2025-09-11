@@ -774,13 +774,23 @@ socket.on("manual_audio_upload", async ({ room, fileData, senderId, senderName, 
             return;
         }
 
-        // Check file size
-        if (Buffer.byteLength(fileData.content, "base64") > MAX_FILE_SIZE) {
-            socket.emit("file_upload_error", {
-                error: "Audio file size exceeds maximum allowed (5MB)",
-            });
+        // Extract base64 payload
+        let base64Payload = fileData.content;
+        const match = typeof base64Payload === 'string' ? base64Payload.match(/^data:(.*?);base64,(.*)$/) : null;
+        let buffer = null;
+        if (match && match[2]) {
+            buffer = Buffer.from(match[2], 'base64');
+        }
+        if (!buffer) {
+            throw new Error("Invalid audio payload");
+        }
+        if (buffer.length > MAX_FILE_SIZE) {
+            socket.emit("file_upload_error", { error: "Audio file size exceeds maximum allowed (5MB)" });
             return;
         }
+
+        // Upload to Cloudinary (resource_type auto handles audio)
+        const { imageUrl } = await uploadToCloudinary(buffer);
 
         // Create audio message object
         const audioMessage = {
@@ -788,7 +798,7 @@ socket.on("manual_audio_upload", async ({ room, fileData, senderId, senderName, 
             file: {
                 name: fileData.name,
                 type: fileData.type,
-                content: fileData.content,
+                content: imageUrl,
             },
             senderName: senderName,
             senderRole: senderRole,
@@ -825,7 +835,7 @@ socket.on("manual_audio_upload", async ({ room, fileData, senderId, senderName, 
             file: {
                 name: fileData.name,
                 type: fileData.type,
-                content: fileData.content,
+                content: imageUrl,
             },
             sender: senderId,
             senderId: senderId,
