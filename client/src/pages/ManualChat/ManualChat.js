@@ -3916,7 +3916,7 @@ const ManualChat = () => {
                 </>
               ) : (
                 <>
-                  {/* <div className="empty-chat-container">
+                  <div className="empty-chat-container">
                   <div className="empty-chat-content">
                     <div className="empty-chat-icon">
                       <svg width="120" height="120" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -3932,13 +3932,7 @@ const ManualChat = () => {
                     <h3>Group Messages</h3>
                     <p>Select a group chat to start the conversation</p>
                     {isMobileView && (
-                      <button className="btn btn-primary mt-3" onClick={handleBackToList}>
-                        View Group Chats
-                      </button>
-                    )}
-                  </div>
-                </div> */}
-                  <div
+                      <div
                     className="col-md-4 chat-list-container flex-column justify-content-center align-items-center bg-light"
                     style={{ height: "100vh", textAlign: "center", display: 'flex' }}
                   >
@@ -3959,6 +3953,10 @@ const ManualChat = () => {
                     </h5>
                     <small className="text-muted">Please wait while we prepare your workspace.</small>
                   </div>
+                    )}
+                  </div>
+                </div>
+                  
                 </>
               )}
             </div>
