@@ -2576,14 +2576,14 @@
 
   .image-annotation-modal .tools-panel {
     min-width: 100% !important;
-    max-height: 40vh !important;
+    height: 28vh !important;
     overflow-y: auto;
     order: 1;
   }
 
   .image-annotation-modal .canvas-area {
     order: 0;
-    height: 60vh !important;
+    height: 72vh !important;
   }
 
   .image-annotation-modal .canvas-wrapper {

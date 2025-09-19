@@ -417,33 +417,39 @@ const EnhancedCanvasDraw = forwardRef(
       canvas.addEventListener("mouseleave", handleMouseUp)
       canvas.addEventListener("wheel", handleWheel)
 
-      // Touch events for mobile
-      canvas.addEventListener("touchstart", (e) => {
+      // Touch events for mobile (non-passive to allow preventDefault)
+      const onTouchStart = (e) => {
         e.preventDefault()
-        const touch = e.touches[0]
+        const touch = e.touches && e.touches[0]
+        if (!touch) return
         const mouseEvent = new MouseEvent("mousedown", {
           clientX: touch.clientX,
           clientY: touch.clientY,
           button: 0,
         })
         handleMouseDown(mouseEvent)
-      })
+      }
 
-      canvas.addEventListener("touchmove", (e) => {
+      const onTouchMove = (e) => {
         e.preventDefault()
-        const touch = e.touches[0]
+        const touch = e.touches && e.touches[0]
+        if (!touch) return
         const mouseEvent = new MouseEvent("mousemove", {
           clientX: touch.clientX,
           clientY: touch.clientY,
         })
         handleMouseMove(mouseEvent)
-      })
+      }
 
-      canvas.addEventListener("touchend", (e) => {
+      const onTouchEnd = (e) => {
         e.preventDefault()
-        const mouseEvent = new MouseEvent("mouseup", {})
+        const mouseEvent = new MouseEvent("mouseup", { button: 0 })
         handleMouseUp(mouseEvent)
-      })
+      }
+
+      canvas.addEventListener("touchstart", onTouchStart, { passive: false })
+      canvas.addEventListener("touchmove", onTouchMove, { passive: false })
+      canvas.addEventListener("touchend", onTouchEnd, { passive: false })
 
       return () => {
         canvas.removeEventListener("mousedown", handleMouseDown)
@@ -451,6 +457,9 @@ const EnhancedCanvasDraw = forwardRef(
         canvas.removeEventListener("mouseup", handleMouseUp)
         canvas.removeEventListener("mouseleave", handleMouseUp)
         canvas.removeEventListener("wheel", handleWheel)
+        canvas.removeEventListener("touchstart", onTouchStart)
+        canvas.removeEventListener("touchmove", onTouchMove)
+        canvas.removeEventListener("touchend", onTouchEnd)
       }
     }, [canvasWidth, canvasHeight, handleMouseDown, handleMouseMove, handleMouseUp, handleWheel])
 
@@ -572,6 +581,7 @@ const EnhancedCanvasDraw = forwardRef(
                   : "crosshair",
             zIndex: 2,
             background: "transparent",
+            touchAction: "none",
           }}
           width={canvasWidth}
           height={canvasHeight}

@@ -22,6 +22,7 @@ import {
   MdZoomIn,
   MdZoomOut,
   MdCenterFocusWeak,
+  MdOutlineSettings
 } from "react-icons/md"
 import { IoMdArrowRoundBack } from "react-icons/io";
 import { TfiText } from "react-icons/tfi"
@@ -41,15 +42,19 @@ import VoiceRecorder from "./VoiceRecorder" // Adjust the path as needed
 const ENDPOINT = "https://testapi.dessobuild.com/"
 const MAX_FILE_SIZE = 5 * 1024 * 1024
 
-// Custom hook to get mouse position adjusted for zoom
+// Custom hook to get pointer/touch position adjusted for zoom and pan
 const useAdjustedMousePosition = (containerRef, zoomLevel, panOffset) => {
   const getAdjustedMousePosition = (e) => {
     const container = containerRef.current
     if (!container) return { x: 0, y: 0 }
 
     const rect = container.getBoundingClientRect()
-    const x = (e.clientX - rect.left - panOffset.x) / zoomLevel
-    const y = (e.clientY - rect.top - panOffset.y) / zoomLevel
+    const point = e && e.touches && e.touches[0] ? e.touches[0] : e
+    const clientX = point && typeof point.clientX === "number" ? point.clientX : 0
+    const clientY = point && typeof point.clientY === "number" ? point.clientY : 0
+
+    const x = (clientX - rect.left - panOffset.x) / zoomLevel
+    const y = (clientY - rect.top - panOffset.y) / zoomLevel
 
     return { x, y }
   }
@@ -80,6 +85,7 @@ const ManualChat = () => {
   const [currentRoomId, setCurrentRoomId] = useState(null)
   const [isMobileView, setIsMobileView] = useState(false)
   const [showChatList, setShowChatList] = useState(true)
+  const [activeMobileToolSection, setActiveMobileToolSection] = useState(null)
   const [isChatOnGoing, setIsChatOnGoing] = useState(false)
   const [showPrompt, setShowPrompt] = useState(false)
   const [nextPath, setNextPath] = useState(null)
@@ -831,12 +837,23 @@ const ManualChat = () => {
       const rect = containerRef.current.getBoundingClientRect()
       const containerWidth = rect.width
       const containerHeight = rect.height
-      const zoomToFitHeight = (containerHeight - 20) / originalHeight
-      const newZoom = Math.min(zoomToFitHeight, 5)
+
+      // Add inner padding so the image doesn't touch edges
+      const padding = 24 // px on each side
+      const usableWidth = Math.max(containerWidth - padding * 2, 0)
+      const usableHeight = Math.max(containerHeight - padding * 2, 0)
+
+      // Compute zoom to fit within padded area (bounded to max 5x)
+      const scaleToFit = Math.min(usableWidth / originalWidth, usableHeight / originalHeight)
+      const newZoom = Math.min(scaleToFit, 5)
+
+      // Center the image within the container
       const scaledWidth = originalWidth * newZoom
       const scaledHeight = originalHeight * newZoom
-      const offsetY = (containerHeight - scaledHeight) / 2
-      const offsetX = scaledWidth < containerWidth ? (containerWidth - scaledWidth) / 2 : 0
+      const offsetX = Math.round((containerWidth - scaledWidth) / 2)
+      const offsetY = Math.round((containerHeight - scaledHeight) / 2)
+
+      setIsPanning(false)
       setZoomLevel(newZoom)
       setPanOffset({ x: offsetX, y: offsetY })
     }
@@ -1026,13 +1043,23 @@ const ManualChat = () => {
   // Modified handleShapeMouseDown to handle eraser for brush strokes and shapes
   const handleShapeMouseDown = useCallback(
     (e) => {
+      if (e.touches && e.touches.length > 0) {
+        e.preventDefault()
+        e.stopPropagation()
+      } else {
+        e.stopPropagation()
+      }
+      if (e.pointerId && e.currentTarget && e.currentTarget.setPointerCapture) {
+        try { e.currentTarget.setPointerCapture(e.pointerId) } catch (_) {}
+      }
       const canvas = e.currentTarget
       const rect = canvas.getBoundingClientRect()
       const pos = getEventPosition(e)
+      const adjusted = getAdjustedMousePosition(e)
+      const logical_x = adjusted.x
+      const logical_y = adjusted.y
       const visual_x = pos.x - rect.left
       const visual_y = pos.y - rect.top
-      const logical_x = visual_x / zoomLevel
-      const logical_y = visual_y / zoomLevel
 
       if (drawingTool === "eraser") {
         setIsDrawing(true) // Start continuous erasing
@@ -1085,13 +1112,20 @@ const ManualChat = () => {
   // Modified handleShapeMouseMove to handle continuous erasing
   const handleShapeMouseMove = useCallback(
     (e) => {
+      if (e.touches && e.touches.length > 0) {
+        e.preventDefault()
+        e.stopPropagation()
+      } else {
+        e.stopPropagation()
+      }
       const canvas = e.currentTarget
       const rect = canvas.getBoundingClientRect()
       const pos = getEventPosition(e)
+      const adjusted = getAdjustedMousePosition(e)
+      const logical_x = adjusted.x
+      const logical_y = adjusted.y
       const visual_x = pos.x - rect.left
       const visual_y = pos.y - rect.top
-      const logical_x = visual_x / zoomLevel
-      const logical_y = visual_y / zoomLevel
 
       if (isDrawingShape && shapeStart) {
         setCurrentShape((prev) => ({
@@ -1146,7 +1180,14 @@ const ManualChat = () => {
   )
 
   // Ensure rasterization after erase in handleShapeMouseUp
-  const handleShapeMouseUp = useCallback(() => {
+  const handleShapeMouseUp = useCallback((e) => {
+    if (e && e.touches) {
+      e.preventDefault()
+      e.stopPropagation()
+    }
+    if (e && e.pointerId && e.currentTarget && e.currentTarget.releasePointerCapture) {
+      try { e.currentTarget.releasePointerCapture(e.pointerId) } catch (_) {}
+    }
     if (isDrawingShape && currentShape) {
       setShapes((prev) => [...prev, currentShape]);
       setCurrentShape(null);
@@ -2985,11 +3026,7 @@ const ManualChat = () => {
                               </button>
                             ) : (
                               <button
-                                onClick={() => {
-                                  setIsAnnotating(false)
-                                  setZoomLevel(1) // Reset zoom
-                                  setPanOffset({ x: 0, y: 0 }) // Reset pan
-                                }}
+                                onClick={handleFitToScreen}
                                 className="btn btn-outline-light btn-sm align-items-center gap-1"
                                 style={{ display: "flex" }}
                               >
@@ -3036,7 +3073,7 @@ const ManualChat = () => {
                     <Modal.Body className="p-0" style={{ height: isMobileView ? "85vh" : "80vh", overflow: "hidden" }}>
                       {selectedImage && (
                         <div className="h-100 d-flex flex-column flex-lg-row">
-                          {/* Tools Panel - Left Sidebar on Desktop, Top on Mobile */}
+                          {/* Tools Panel - Left Sidebar on Desktop, Two-row layout on Mobile */}
                           {isAnnotating && (
                             <div
                               className="tools-panel text-white p-3 order-1 tool-height order-lg-0"
@@ -3044,391 +3081,655 @@ const ManualChat = () => {
                                 width: isMobileView ? "100%" : "340px",
                                 flex: isMobileView ? "0 0 auto" : "0 0 340px",
                                 flexShrink: 0,
-                                maxHeight: isMobileView ? "50vh" : "none",
+                                maxHeight: isMobileView ? "25vh" : "none",
                                 overflowY: "auto",
                                 fontSize: isMobileView ? "0.85rem" : undefined,
                                 gap: isMobileView ? "6px" : undefined
                               }}
                             >
-                              {/* Drawing Tools Section */}
-                              <div className="mb-4">
-                                <h6 style={{ display: "flex" }} className="text-black mb-3 align-items-center gap-2">
-                                  <MdBrush className="text-info" /> Drawing Tools
-                                </h6>
+                              {/* Mobile Layout - Two Row System */}
+                              {isMobileView ? (
+                                <>
+                                  {/* First Row - 4 Main Tool Icons */}
+                                  <div className="row g-2 mb-3">
+                                    {/* Column 1: Drawing Tools */}
+                                    <div className="col-3">
+                                      <button
+                                        className={`btn w-100 ${activeMobileToolSection === 'drawing' ? 'btn-info text-dark' : 'btn-outline-info'}`}
+                                        onClick={() => setActiveMobileToolSection(activeMobileToolSection === 'drawing' ? null : 'drawing')}
+                                        style={{ height: "50px", display: "flex", alignItems: "center", justifyContent: "center" }}
+                                        title="Drawing Tools"
+                                      >
+                                        <MdBrush size={20} />
+                                      </button>
+                                    </div>
 
-                                {/* First Row */}
-                                <div style={{ display: "flex" }} className={`gap-2 mb-2 ${isMobileView ? "flex-wrap" : "flex-wrap"}`}>
-                                  <button
-                                    className={`btn ${drawingTool === "brush" ? "btn-info text-dark" : "btn-outline-info"}`}
-                                    onClick={() => {
-                                      console.log("Brush tool clicked, current isAddingText:", isAddingText)
-                                      setDrawingTool("brush")
-                                      if (isAddingText) {
-                                        console.log("Brush tool: Setting isAddingText to false")
-                                        setIsAddingText(false)
-                                      }
-                                    }}
-                                    style={{
-                                      width: isMobileView ? "36px" : "45px",
-                                      height: isMobileView ? "36px" : "45px",
-                                      display: "flex",
-                                      alignItems: "center",
-                                      justifyContent: "center",
-                                    }}
-                                    title="Brush Tool - Draw freehand"
-                                  >
-                                    <MdBrush size={isMobileView ? 14 : 20} />
-                                  </button>
+                                    {/* Column 2: Brush Settings */}
+                                    <div className="col-3">
+                                      <button
+                                        className={`btn w-100 ${activeMobileToolSection === 'brush' ? 'btn-info text-dark' : 'btn-outline-info'}`}
+                                        onClick={() => setActiveMobileToolSection(activeMobileToolSection === 'brush' ? null : 'brush')}
+                                        style={{ height: "50px", display: "flex", alignItems: "center", justifyContent: "center" }}
+                                        title="Brush Settings"
+                                      >
+                                        <MdOutlineSettings size={20} />
+                                      </button>
+                                    </div>
 
-                                  {/* <button
-                                    className={`btn ${drawingTool === "eraser" ? "btn-info text-dark" : "btn-outline-info"}`}
-                                    onClick={() => {
-                                      setDrawingTool("eraser")
-                                      if (isAddingText) setIsAddingText(false)
-                                    }}
-                                    style={{
-                                      width: isMobileView ? "36px" : "45px",
-                                      height: isMobileView ? "36px" : "45px",
-                                      display: "flex",
-                                      alignItems: "center",
-                                      justifyContent: "center",
-                                    }}
-                                    title="Eraser Tool - Remove drawings"
-                                  >
-                                    <MdClear size={isMobileView ? 18 : 20} />
-                                  </button> */}
+                                    {/* Column 3: Zoom Controls */}
+                                    <div className="col-3">
+                                      <button
+                                        className={`btn w-100 ${activeMobileToolSection === 'zoom' ? 'btn-info text-dark' : 'btn-outline-info'}`}
+                                        onClick={() => setActiveMobileToolSection(activeMobileToolSection === 'zoom' ? null : 'zoom')}
+                                        style={{ height: "50px", display: "flex", alignItems: "center", justifyContent: "center" }}
+                                        title="Zoom Controls"
+                                      >
+                                        <MdZoomIn size={20} />
+                                      </button>
+                                    </div>
 
-                                  <button
-                                    className={`btn ${drawingTool === "rectangle" ? "btn-info text-dark" : "btn-outline-info"}`}
-                                    onClick={() => {
-                                      setDrawingTool("rectangle")
-                                      if (isAddingText) setIsAddingText(false)
-                                    }}
-                                    style={{
-                                      width: isMobileView ? "36px" : "45px",
-                                      height: isMobileView ? "36px" : "45px",
-                                      display: "flex",
-                                      alignItems: "center",
-                                      justifyContent: "center",
-                                    }}
-                                    title="Rectangle Tool - Draw rectangles"
-                                  >
-                                    <MdRectangle size={isMobileView ? 14 : 20} />
-                                  </button>
+                                    {/* Column 4: Text Settings (only visible when text tool is active) */}
+                                    <div className="col-3">
+                                      {isAddingText ? (
+                                        <button
+                                          className={`btn w-100 ${activeMobileToolSection === 'text' ? 'btn-info text-dark' : 'btn-outline-info'}`}
+                                          onClick={() => setActiveMobileToolSection(activeMobileToolSection === 'text' ? null : 'text')}
+                                          style={{ height: "50px", display: "flex", alignItems: "center", justifyContent: "center" }}
+                                          title="Text Settings"
+                                        >
+                                          <TfiText size={20} />
+                                        </button>
+                                      ) : (
+                                        <div style={{ height: "50px" }}></div>
+                                      )}
+                                    </div>
+                                  </div>
 
-                                  <button
-                                    className={`btn ${drawingTool === "circle" ? "btn-info text-dark" : "btn-outline-info"}`}
-                                    onClick={() => {
-                                      setDrawingTool("circle")
-                                      if (isAddingText) setIsAddingText(false)
-                                    }}
-                                    style={{
-                                      width: isMobileView ? "36px" : "45px",
-                                      height: isMobileView ? "36px" : "45px",
-                                      display: "flex",
-                                      alignItems: "center",
-                                      justifyContent: "center",
-                                    }}
-                                    title="Circle Tool - Draw circles"
-                                  >
-                                    <MdCircle size={isMobileView ? 14 : 20} />
-                                  </button>
+                                  {/* Second Row - Tool Details */}
+                                  {activeMobileToolSection && (
+                                    <div className="row mb-3">
+                                      <div className="col-12">
+                                        {activeMobileToolSection === 'drawing' && (
+                                          <div className="border rounded p-2 bg-light">
+                                            <h6 className="text-black mb-3">Drawing Tools</h6>
+                                            <div style={{ display: "flex" }} className="flex-wrap gap-2">
+                                              <button
+                                                className={`btn ${drawingTool === "brush" ? "btn-info text-dark" : "btn-outline-info"}`}
+                                                onClick={() => {
+                                                  setDrawingTool("brush")
+                                                  if (isAddingText) setIsAddingText(false)
+                                                }}
+                                                style={{ width: "45px", height: "45px", display: "flex", alignItems: "center", justifyContent: "center" }}
+                                                title="Brush Tool"
+                                              >
+                                                <MdBrush size={20} />
+                                              </button>
+                                              <button
+                                                className={`btn ${drawingTool === "rectangle" ? "btn-info text-dark" : "btn-outline-info"}`}
+                                                onClick={() => {
+                                                  setDrawingTool("rectangle")
+                                                  if (isAddingText) setIsAddingText(false)
+                                                }}
+                                                style={{ width: "45px", height: "45px", display: "flex", alignItems: "center", justifyContent: "center" }}
+                                                title="Rectangle Tool"
+                                              >
+                                                <MdRectangle size={20} />
+                                              </button>
+                                              <button
+                                                className={`btn ${drawingTool === "circle" ? "btn-info text-dark" : "btn-outline-info"}`}
+                                                onClick={() => {
+                                                  setDrawingTool("circle")
+                                                  if (isAddingText) setIsAddingText(false)
+                                                }}
+                                                style={{ width: "45px", height: "45px", display: "flex", alignItems: "center", justifyContent: "center" }}
+                                                title="Circle Tool"
+                                              >
+                                                <MdCircle size={20} />
+                                              </button>
+                                              <button
+                                                className={`btn ${drawingTool === "arrow" ? "btn-info text-dark" : "btn-outline-info"}`}
+                                                onClick={() => {
+                                                  setDrawingTool("arrow")
+                                                  if (isAddingText) setIsAddingText(false)
+                                                }}
+                                                style={{ width: "45px", height: "45px", display: "flex", alignItems: "center", justifyContent: "center" }}
+                                                title="Arrow Tool"
+                                              >
+                                                <MdArrowForward size={20} />
+                                              </button>
+                                              <button
+                                                className={`btn ${drawingTool === "text" ? "btn-info text-dark" : "btn-outline-info"}`}
+                                                onClick={() => {
+                                                  if (isAddingText) {
+                                                    setIsAddingText(false)
+                                                    setDrawingTool("brush")
+                                                  } else {
+                                                    setIsAddingText(true)
+                                                    setDrawingTool("text")
+                                                  }
+                                                }}
+                                                style={{ width: "45px", height: "45px", display: "flex", alignItems: "center", justifyContent: "center" }}
+                                                title="Text Tool"
+                                              >
+                                                <TfiText size={20} />
+                                              </button>
+                                              <button
+                                                className={`btn ${drawingTool === "pan" ? "btn-info text-dark" : "btn-outline-info"}`}
+                                                onClick={() => {
+                                                  setDrawingTool("pan")
+                                                  if (isAddingText) setIsAddingText(false)
+                                                }}
+                                                style={{ width: "45px", height: "45px", display: "flex", alignItems: "center", justifyContent: "center" }}
+                                                title="Pan Tool"
+                                              >
+                                                <Hand size={20} />
+                                              </button>
+                                            </div>
+                                          </div>
+                                        )}
 
-                                  <button
-                                    className={`btn ${drawingTool === "arrow" ? "btn-info text-dark" : "btn-outline-info"}`}
-                                    onClick={() => {
-                                      setDrawingTool("arrow")
-                                      if (isAddingText) setIsAddingText(false)
-                                    }}
-                                    style={{
-                                      width: isMobileView ? "36px" : "45px",
-                                      height: isMobileView ? "36px" : "45px",
-                                      display: "flex",
-                                      alignItems: "center",
-                                      justifyContent: "center",
-                                    }}
-                                    title="Arrow Tool - Draw arrows"
-                                  >
-                                    <MdArrowForward size={isMobileView ? 14 : 20} />
-                                  </button>
+                                        {activeMobileToolSection === 'brush' && (
+                                          <div className="border rounded p-3 bg-light">
+                                            <h6 className="text-black mb-3">Brush Settings</h6>
+                                            <div style={{ display: "flex" }} className="flex-wrap gap-2">
+                                              <div className="mb-3">
+                                                <label className="form-label text-black small">Color</label>
+                                                <input
+                                                  type="color"
+                                                  value={brushColor}
+                                                  onChange={(e) => setBrushColor(e.target.value)}
+                                                  className="form-control border form-control-color"
+                                                  style={{ width: "60px", height: "40px" }}
+                                                />
+                                              </div>
+                                              <div className="mb-3">
+                                                <label className="form-label text-black small">Size: {brushRadius}px</label>
+                                                <input
+                                                  type="range"
+                                                  min="1"
+                                                  max="20"
+                                                  value={brushRadius}
+                                                  onChange={(e) => setBrushRadius(Number(e.target.value))}
+                                                  className="form-range"
+                                                />
+                                              </div>
+                                            </div>
 
-                                  <button
-                                    className={`btn ${drawingTool === "text" ? "btn-info text-dark" : "btn-outline-info"}`}
-                                    onClick={() => {
-                                      console.log("Text tool button clicked, current isAddingText:", isAddingText)
-                                      if (isAddingText) {
-                                        console.log("Text tool: Disabling text mode")
-                                        setIsAddingText(false)
-                                        setDrawingTool("brush")
-                                        console.log("Text mode disabled")
-                                      } else {
-                                        console.log("Text tool: Enabling text mode")
-                                        setIsAddingText(true)
-                                        setDrawingTool("text")
-                                        console.log("Text mode enabled")
-                                      }
-                                    }}
-                                    style={{
-                                      width: isMobileView ? "36px" : "45px",
-                                      height: isMobileView ? "36px" : "45px",
-                                      display: "flex",
-                                      alignItems: "center",
-                                      justifyContent: "center",
-                                    }}
-                                    title="Text Tool - Add text"
-                                  >
-                                    <TfiText size={isMobileView ? 14 : 20} />
-                                  </button>
+                                          </div>
+                                        )}
 
-                                  <button
-                                    className={`btn ${drawingTool === "pan" ? "btn-info text-dark" : "btn-outline-info"}`}
-                                    onClick={() => {
-                                      setDrawingTool("pan")
-                                      if (isAddingText) setIsAddingText(false)
-                                    }}
-                                    style={{
-                                      width: isMobileView ? "44px" : "45px",
-                                      height: isMobileView ? "44px" : "45px",
-                                      display: "flex",
-                                      alignItems: "center",
-                                      justifyContent: "center",
-                                    }}
-                                    title="Pan Tool - Drag to move"
-                                  >
-                                    <Hand size={isMobileView ? 14 : 20} />
-                                  </button>
-                                </div>
+                                        {activeMobileToolSection === 'zoom' && (
+                                          <div className="border rounded p-3 bg-light">
+                                            <h6 className="text-black mb-3">Zoom Controls</h6>
+                                            <div style={{ display: "flex" }} className=" align-items-center gap-2 mb-3">
+                                              <button
+                                                className="btn btn-outline-primary btn-sm"
+                                                onClick={() => handleZoom(100)}
+                                                title="Zoom In"
+                                                style={{ width: "40px", height: "40px", display: "flex", alignItems: "center", justifyContent: "center" }}
+                                              >
+                                                <MdZoomIn size={20} />
+                                              </button>
+                                              <span className="badge bg-light text-dark">
+                                                {Math.round(zoomLevel * 100)}%
+                                              </span>
+                                              <button
+                                                className="btn btn-outline-primary btn-sm"
+                                                onClick={() => handleZoom(-100)}
+                                                title="Zoom Out"
+                                                style={{ width: "40px", height: "40px", display: "flex", alignItems: "center", justifyContent: "center" }}
+                                              >
+                                                <MdZoomOut size={20} />
+                                              </button>
+                                              <button
+                                                className="btn btn-outline-primary btn-sm"
+                                                onClick={handleFitToScreen}
+                                                title="Reset Zoom"
+                                                style={{ width: "40px", height: "40px", display: "flex", alignItems: "center", justifyContent: "center" }}
+                                              >
+                                                <MdCenterFocusWeak size={20} />
+                                              </button>
+                                              <button
+                                                className="btn btn-outline-primary btn-sm"
+                                                onClick={handleUndo}
+                                                disabled={annotationHistoryIndex <= 0}
+                                                title="Undo"
+                                                style={{ width: "40px", height: "40px", display: "flex", alignItems: "center", justifyContent: "center" }}
+                                              >
+                                                <MdUndo size={20} />
+                                              </button>
+                                              <button
+                                                className="btn btn-outline-primary btn-sm"
+                                                onClick={handleRedo}
+                                                disabled={annotationHistoryIndex >= annotationHistory.length - 1}
+                                                title="Redo"
+                                                style={{ width: "40px", height: "40px", display: "flex", alignItems: "center", justifyContent: "center" }}
+                                              >
+                                                <MdRedo size={20} />
+                                              </button>
+                                            </div>
+                                            <div style={{ display: "flex" }} className="align-items-center gap-2">
+                                              {/* <button
+                                                className="btn btn-outline-primary btn-sm"
+                                                onClick={handleUndo}
+                                                disabled={annotationHistoryIndex <= 0}
+                                                title="Undo"
+                                                style={{ width: "40px", height: "40px", display: "flex", alignItems: "center", justifyContent: "center" }}
+                                              >
+                                                <MdUndo size={20} />
+                                              </button>
+                                              <button
+                                                className="btn btn-outline-primary btn-sm"
+                                                onClick={handleRedo}
+                                                disabled={annotationHistoryIndex >= annotationHistory.length - 1}
+                                                title="Redo"
+                                                style={{ width: "40px", height: "40px", display: "flex", alignItems: "center", justifyContent: "center" }}
+                                              >
+                                                <MdRedo size={20} />
+                                              </button> */}
+                                            </div>
+                                          </div>
+                                        )}
 
-                                {/* Second Row */}
-                                <div style={{ display: "flex" }} className={`gap-2 ${isMobileView ? "flex-wrap" : ""}`}>
+                                        {activeMobileToolSection === 'text' && isAddingText && (
+                                          <div className="border rounded p-3 bg-light">
+                                            <h6 className="text-black mb-3">Text Settings</h6>
+                                            <div style={{ display: "flex" }} className=" align-items-center gap-2 mb-3">
+                                              <div className="mb-3">
+                                                <label className="form-label text-black small">Text Color</label>
+                                                <input
+                                                  type="color"
+                                                  value={textSettings.color}
+                                                  onChange={(e) => setTextSettings((prev) => ({ ...prev, color: e.target.value }))}
+                                                  className="form-control border form-control-color"
+                                                  style={{ width: "60px", height: "40px" }}
+                                                />
+                                              </div>
+                                              <div className="mb-3">
+                                                <label className="form-label text-black small">Font Size: {textSettings.fontSize}px</label>
+                                                <input
+                                                  type="range"
+                                                  min="12"
+                                                  max="48"
+                                                  value={textSettings.fontSize}
+                                                  onChange={(e) => setTextSettings((prev) => ({ ...prev, fontSize: Number.parseInt(e.target.value) }))}
+                                                  className="form-range"
+                                                />
+                                              </div>
+                                            </div>
 
-                                </div>
-                              </div>
-
-                              {/* Brush Settings */}
-                              <details className="mb-3" open={!isMobileView}>
-                                <summary className="text-black mb-2" style={{ cursor: "pointer", userSelect: "none", fontSize: isMobileView ? "0.95rem" : "1rem" }}>
-                                  {drawingTool === "eraser" ? "Eraser Settings" : "Brush Settings"}
-                                </summary>
-                                <div className={`canvas-flex gap-3 ${isMobileView ? "flex-column" : ""}`}>
-                                  {drawingTool !== "eraser" && (
-                                    <div className="mb-2">
-                                      <label className="form-label text-black small">Color</label>
-                                      <div className="d-flex align-items-center gap-2">
-                                        <input
-                                          type="color"
-                                          value={brushColor}
-                                          onChange={(e) => setBrushColor(e.target.value)}
-                                          className="form-control border form-control-color"
-                                          style={{
-                                            width: isMobileView ? "36px" : "50px",
-                                            height: isMobileView ? "32px" : "40px"
-                                          }}
-                                        />
+                                            <div className="mb-3">
+                                              <label className="form-label text-black small">Font Family</label>
+                                              <select
+                                                value={textSettings.fontFamily}
+                                                onChange={(e) => setTextSettings((prev) => ({ ...prev, fontFamily: e.target.value }))}
+                                                className="form-select form-select-sm text-black border-secondary"
+                                              >
+                                                <option value="Arial">Arial</option>
+                                                <option value="Helvetica">Helvetica</option>
+                                                <option value="Times New Roman">Times New Roman</option>
+                                                <option value="Courier New">Courier New</option>
+                                              </select>
+                                            </div>
+                                          </div>
+                                        )}
                                       </div>
                                     </div>
                                   )}
+                                </>
+                              ) : (
+                                /* Desktop Layout - Original Structure */
+                                <>
+                                  {/* Drawing Tools Section */}
+                                  <div className="mb-4">
+                                    <h6 style={{ display: "flex" }} className="text-black mb-3 align-items-center gap-2">
+                                      <MdBrush className="text-info" /> Drawing Tools
+                                    </h6>
 
-                                  <div className="mb-2">
-                                    <label className="form-label text-black small">
-                                      Size: {drawingTool === "eraser" ? eraserRadius : brushRadius}px
-                                    </label>
-                                    <input
-                                      type="range"
-                                      min="1"
-                                      max={drawingTool === "eraser" ? "50" : "20"}
-                                      value={drawingTool === "eraser" ? eraserRadius : brushRadius}
-                                      onChange={(e) =>
-                                        drawingTool === "eraser"
-                                          ? setEraserRadius(Number(e.target.value))
-                                          : setBrushRadius(Number(e.target.value))
-                                      }
-                                      className="form-range"
-                                      style={{
-                                        height: isMobileView ? "4px" : "6px"
-                                      }}
-                                    />
-                                  </div>
-                                </div>
-                              </details>
-
-                              {/* Text Settings */}
-                              {isAddingText && (
-                                <details className="mb-3" open={!isMobileView}>
-                                  <summary className="text-black forDisplayFlex mb-2 align-items-center gap-2" style={{ cursor: "pointer", userSelect: "none", fontSize: isMobileView ? "0.95rem" : "1rem" }}>
-                                    <MdPinEnd className="text-warning" size={isMobileView ? 14 : 20} /> Text Settings
-                                  </summary>
-                                  <div className={`canvas-flex gap-3 ${isMobileView ? "flex-column" : ""}`}>
-                                    <div className="mb-2">
-                                      <label className="form-label text-black small">Text Color</label>
-                                      <input
-                                        type="color"
-                                        value={textSettings.color}
-                                        onChange={(e) =>
-                                          setTextSettings((prev) => ({ ...prev, color: e.target.value }))
-                                        }
-                                        className="form-control border form-control-color w-100"
-                                        style={{
-                                          height: isMobileView ? "32px" : "40px",
-                                          width: isMobileView ? "100%" : "auto"
+                                    {/* First Row */}
+                                    <div style={{ display: "flex" }} className="gap-1 mb-2 flex-wrap">
+                                      <button
+                                        className={`btn ${drawingTool === "brush" ? "btn-info text-dark" : "btn-outline-info"}`}
+                                        onClick={() => {
+                                          console.log("Brush tool clicked, current isAddingText:", isAddingText)
+                                          setDrawingTool("brush")
+                                          if (isAddingText) {
+                                            console.log("Brush tool: Setting isAddingText to false")
+                                            setIsAddingText(false)
+                                          }
                                         }}
-                                      />
-                                    </div>
-
-                                    <div className="mb-2">
-                                      <label className="form-label text-black small">
-                                        Font Size: {textSettings.fontSize}px
-                                      </label>
-                                      <input
-                                        type="range"
-                                        min="12"
-                                        max="48"
-                                        value={textSettings.fontSize}
-                                        onChange={(e) =>
-                                          setTextSettings((prev) => ({
-                                            ...prev,
-                                            fontSize: Number.parseInt(e.target.value),
-                                          }))
-                                        }
-                                        className="form-range"
                                         style={{
-                                          height: isMobileView ? "4px" : "6px"
+                                          width: "45px",
+                                          height: "45px",
+                                          display: "flex",
+                                          alignItems: "center",
+                                          justifyContent: "center",
                                         }}
-                                      />
+                                        title="Brush Tool - Draw freehand"
+                                      >
+                                        <MdBrush size={20} />
+                                      </button>
+
+                                      <button
+                                        className={`btn ${drawingTool === "rectangle" ? "btn-info text-dark" : "btn-outline-info"}`}
+                                        onClick={() => {
+                                          setDrawingTool("rectangle")
+                                          if (isAddingText) setIsAddingText(false)
+                                        }}
+                                        style={{
+                                          width: "45px",
+                                          height: "45px",
+                                          display: "flex",
+                                          alignItems: "center",
+                                          justifyContent: "center",
+                                        }}
+                                        title="Rectangle Tool - Draw rectangles"
+                                      >
+                                        <MdRectangle size={20} />
+                                      </button>
+
+                                      <button
+                                        className={`btn ${drawingTool === "circle" ? "btn-info text-dark" : "btn-outline-info"}`}
+                                        onClick={() => {
+                                          setDrawingTool("circle")
+                                          if (isAddingText) setIsAddingText(false)
+                                        }}
+                                        style={{
+                                          width: "45px",
+                                          height: "45px",
+                                          display: "flex",
+                                          alignItems: "center",
+                                          justifyContent: "center",
+                                        }}
+                                        title="Circle Tool - Draw circles"
+                                      >
+                                        <MdCircle size={20} />
+                                      </button>
+
+                                      <button
+                                        className={`btn ${drawingTool === "arrow" ? "btn-info text-dark" : "btn-outline-info"}`}
+                                        onClick={() => {
+                                          setDrawingTool("arrow")
+                                          if (isAddingText) setIsAddingText(false)
+                                        }}
+                                        style={{
+                                          width: "45px",
+                                          height: "45px",
+                                          display: "flex",
+                                          alignItems: "center",
+                                          justifyContent: "center",
+                                        }}
+                                        title="Arrow Tool - Draw arrows"
+                                      >
+                                        <MdArrowForward size={20} />
+                                      </button>
+
+                                      <button
+                                        className={`btn ${drawingTool === "text" ? "btn-info text-dark" : "btn-outline-info"}`}
+                                        onClick={() => {
+                                          console.log("Text tool button clicked, current isAddingText:", isAddingText)
+                                          if (isAddingText) {
+                                            console.log("Text tool: Disabling text mode")
+                                            setIsAddingText(false)
+                                            setDrawingTool("brush")
+                                            console.log("Text mode disabled")
+                                          } else {
+                                            console.log("Text tool: Enabling text mode")
+                                            setIsAddingText(true)
+                                            setDrawingTool("text")
+                                            console.log("Text mode enabled")
+                                          }
+                                        }}
+                                        style={{
+                                          width: "45px",
+                                          height: "45px",
+                                          display: "flex",
+                                          alignItems: "center",
+                                          justifyContent: "center",
+                                        }}
+                                        title="Text Tool - Add text"
+                                      >
+                                        <TfiText size={20} />
+                                      </button>
+
+                                      <button
+                                        className={`btn ${drawingTool === "pan" ? "btn-info text-dark" : "btn-outline-info"}`}
+                                        onClick={() => {
+                                          setDrawingTool("pan")
+                                          if (isAddingText) setIsAddingText(false)
+                                        }}
+                                        style={{
+                                          width: "45px",
+                                          height: "45px",
+                                          display: "flex",
+                                          alignItems: "center",
+                                          justifyContent: "center",
+                                        }}
+                                        title="Pan Tool - Drag to move"
+                                      >
+                                        <Hand size={20} />
+                                      </button>
                                     </div>
                                   </div>
-
-                                  <div className="mb-2">
-                                    <label className="form-label text-black small">Font Family</label>
-                                    <select
-                                      value={textSettings.fontFamily}
-                                      onChange={(e) =>
-                                        setTextSettings((prev) => ({ ...prev, fontFamily: e.target.value }))
-                                      }
-                                      className="form-select form-select-sm text-black border-secondary"
-                                    >
-                                      <option value="Arial">Arial</option>
-                                      <option value="Helvetica">Helvetica</option>
-                                      <option value="Times New Roman">Times New Roman</option>
-                                      <option value="Courier New">Courier New</option>
-                                    </select>
-                                  </div>
-                                </details>
+                                </>
                               )}
 
-                              {/* Zoom Controls */}
-                              <details className="mb-3" open={!isMobileView}>
-                                <summary className="text-black mb-2 forDisplayFlex align-items-center gap-2" style={{ cursor: "pointer", userSelect: "none", fontSize: isMobileView ? "0.95rem" : "1rem" }}>
-                                  <MdZoomIn className="text-primary" size={isMobileView ? 14 : 20} /> Zoom Controls
-                                </summary>
-                                <div className={`forDisplayFlex align-items-center gap-2 ${isMobileView ? "flex-wrap" : ""}`}>
-                                  <button
-                                    className="btn btn-outline-primary btn-sm"
-                                    onClick={() => handleZoom(100)}
-                                    title="Zoom In"
-                                    style={{
-                                      width: isMobileView ? "36px" : "auto",
-                                      height: isMobileView ? "36px" : "auto",
-                                      display: "flex",
-                                      alignItems: "center",
-                                      justifyContent: "center"
-                                    }}
-                                  >
-                                    <MdZoomIn size={isMobileView ? 14 : 20} />
-                                  </button>
-                                  <span className="badge bg-light text-dark" style={{ fontSize: isMobileView ? "0.7rem" : "0.75rem" }}>
-                                    {Math.round(zoomLevel * 100)}%
-                                  </span>
-                                  <button
-                                    className="btn btn-outline-primary btn-sm"
-                                    onClick={() => handleZoom(-100)}
-                                    title="Zoom Out"
-                                    style={{
-                                      width: isMobileView ? "36px" : "auto",
-                                      height: isMobileView ? "36px" : "auto",
-                                      display: "flex",
-                                      alignItems: "center",
-                                      justifyContent: "center"
-                                    }}
-                                  >
-                                    <MdZoomOut size={isMobileView ? 14 : 20} />
-                                  </button>
-                                  <button
-                                    className="btn btn-outline-primary btn-sm"
-                                    onClick={resetZoom}
-                                    title="Reset to 100%"
-                                    style={{
-                                      width: isMobileView ? "36px" : "auto",
-                                      height: isMobileView ? "36px" : "auto",
-                                      display: "flex",
-                                      alignItems: "center",
-                                      justifyContent: "center"
-                                    }}
-                                  >
-                                    <MdZoomIn size={isMobileView ? 14 : 20} />
-                                  </button>
-                                  <button
-                                    className="btn btn-outline-primary btn-sm"
-                                    onClick={handleUndo}
-                                    disabled={annotationHistoryIndex <= 0}
-                                    title="Undo (Ctrl+Z)"
-                                    style={{
-                                      width: isMobileView ? "36px" : "auto",
-                                      height: isMobileView ? "36px" : "auto",
-                                      display: "flex",
-                                      alignItems: "center",
-                                      justifyContent: "center"
-                                    }}
-                                  >
-                                    <MdUndo size={isMobileView ? 14 : 20} />
-                                  </button>
-                                  <button
-                                    className="btn btn-outline-primary btn-sm"
-                                    onClick={handleRedo}
-                                    disabled={annotationHistoryIndex >= annotationHistory.length - 1}
-                                    title="Redo (Ctrl+Y)"
-                                    style={{
-                                      width: isMobileView ? "36px" : "auto",
-                                      height: isMobileView ? "36px" : "auto",
-                                      display: "flex",
-                                      alignItems: "center",
-                                      justifyContent: "center"
-                                    }}
-                                  >
-                                    <MdRedo size={isMobileView ? 14 : 20} />
-                                  </button>
-                                  <button
-                                    className="btn btn-outline-primary btn-sm"
-                                    onClick={handleFitToScreen}
-                                    title="Fit to Screen"
-                                    style={{
-                                      width: isMobileView ? "44px" : "auto",
-                                      height: isMobileView ? "44px" : "auto",
-                                      display: "flex",
-                                      alignItems: "center",
-                                      justifyContent: "center"
-                                    }}
-                                  >
-                                    <MdCenterFocusWeak size={isMobileView ? 14 : 20} />
-                                  </button>
-                                </div>
-                                <p className="text-black small mt-2">
-                                  {isMobileView
-                                    ? "Tip: Use two fingers to zoom, drag to pan the image"
-                                    : "Tip: Hold Ctrl + Click and drag to pan the image"
-                                  }
-                                </p>
-                                {/* Debug info for undo/redo */}
-                                <div className="text-muted small mt-1">
-                                  History: {annotationHistoryIndex + 1}/{annotationHistory.length}
-                                  {annotationHistory.length > 0 && (
-                                    <span className="ms-2">
-                                      (Undo: {annotationHistoryIndex > 0 ? "✓" : "✗"},
-                                      Redo: {annotationHistoryIndex < annotationHistory.length - 1 ? "✓" : "✗"})
-                                    </span>
+                              {/* Desktop-only sections for brush settings, text settings, and zoom controls */}
+                              {!isMobileView && (
+                                <>
+                                  {/* Brush Settings */}
+                                  <details className="mb-3" open>
+                                    <summary className="text-black mb-2" style={{ cursor: "pointer", userSelect: "none" }}>
+                                      {drawingTool === "eraser" ? "Eraser Settings" : "Brush Settings"}
+                                    </summary>
+                                    <div className="canvas-flex gap-3">
+                                      {drawingTool !== "eraser" && (
+                                        <div className="mb-2">
+                                          <label className="form-label text-black small">Color</label>
+                                          <div className="d-flex align-items-center gap-2">
+                                            <input
+                                              type="color"
+                                              value={brushColor}
+                                              onChange={(e) => setBrushColor(e.target.value)}
+                                              className="form-control border form-control-color"
+                                              style={{ width: "50px", height: "40px" }}
+                                            />
+                                          </div>
+                                        </div>
+                                      )}
+
+                                      <div className="mb-2">
+                                        <label className="form-label text-black small">
+                                          Size: {drawingTool === "eraser" ? eraserRadius : brushRadius}px
+                                        </label>
+                                        <input
+                                          type="range"
+                                          min="1"
+                                          max={drawingTool === "eraser" ? "50" : "20"}
+                                          value={drawingTool === "eraser" ? eraserRadius : brushRadius}
+                                          onChange={(e) =>
+                                            drawingTool === "eraser"
+                                              ? setEraserRadius(Number(e.target.value))
+                                              : setBrushRadius(Number(e.target.value))
+                                          }
+                                          className="form-range"
+                                          style={{ height: "6px" }}
+                                        />
+                                      </div>
+                                    </div>
+                                  </details>
+
+                                  {/* Text Settings */}
+                                  {isAddingText && (
+                                    <details className="mb-3" open>
+                                      <summary className="text-black forDisplayFlex mb-2 align-items-center gap-2" style={{ cursor: "pointer", userSelect: "none" }}>
+                                        <MdPinEnd className="text-warning" size={20} /> Text Settings
+                                      </summary>
+                                      <div className="canvas-flex gap-3">
+                                        <div className="mb-2">
+                                          <label className="form-label text-black small">Text Color</label>
+                                          <input
+                                            type="color"
+                                            value={textSettings.color}
+                                            onChange={(e) =>
+                                              setTextSettings((prev) => ({ ...prev, color: e.target.value }))
+                                            }
+                                            className="form-control border form-control-color w-100"
+                                            style={{ height: "40px", width: "auto" }}
+                                          />
+                                        </div>
+
+                                        <div className="mb-2">
+                                          <label className="form-label text-black small">
+                                            Font Size: {textSettings.fontSize}px
+                                          </label>
+                                          <input
+                                            type="range"
+                                            min="12"
+                                            max="48"
+                                            value={textSettings.fontSize}
+                                            onChange={(e) =>
+                                              setTextSettings((prev) => ({
+                                                ...prev,
+                                                fontSize: Number.parseInt(e.target.value),
+                                              }))
+                                            }
+                                            className="form-range"
+                                            style={{ height: "6px" }}
+                                          />
+                                        </div>
+                                      </div>
+
+                                      <div className="mb-2">
+                                        <label className="form-label text-black small">Font Family</label>
+                                        <select
+                                          value={textSettings.fontFamily}
+                                          onChange={(e) =>
+                                            setTextSettings((prev) => ({ ...prev, fontFamily: e.target.value }))
+                                          }
+                                          className="form-select form-select-sm text-black border-secondary"
+                                        >
+                                          <option value="Arial">Arial</option>
+                                          <option value="Helvetica">Helvetica</option>
+                                          <option value="Times New Roman">Times New Roman</option>
+                                          <option value="Courier New">Courier New</option>
+                                        </select>
+                                      </div>
+                                    </details>
                                   )}
-                                </div>
-                              </details>
+
+                                  {/* Zoom Controls */}
+                                  <details className="mb-3" open>
+                                    <summary className="text-black mb-2 forDisplayFlex align-items-center gap-2" style={{ cursor: "pointer", userSelect: "none" }}>
+                                      <MdZoomIn className="text-primary" size={20} /> Zoom Controls
+                                    </summary>
+                                    <div className="forDisplayFlex align-items-center gap-2">
+                                      <button
+                                        className="btn btn-outline-primary btn-sm"
+                                        onClick={() => handleZoom(100)}
+                                        title="Zoom In"
+                                        style={{
+                                          width: "auto",
+                                          height: "auto",
+                                          display: "flex",
+                                          alignItems: "center",
+                                          justifyContent: "center"
+                                        }}
+                                      >
+                                        <MdZoomIn size={20} />
+                                      </button>
+                                      <span className="badge bg-light text-dark" style={{ fontSize: "0.75rem" }}>
+                                        {Math.round(zoomLevel * 100)}%
+                                      </span>
+                                      <button
+                                        className="btn btn-outline-primary btn-sm"
+                                        onClick={() => handleZoom(-100)}
+                                        title="Zoom Out"
+                                        style={{
+                                          width: "auto",
+                                          height: "auto",
+                                          display: "flex",
+                                          alignItems: "center",
+                                          justifyContent: "center"
+                                        }}
+                                      >
+                                        <MdZoomOut size={20} />
+                                      </button>
+                                      <button
+                                        className="btn btn-outline-primary btn-sm"
+                                        onClick={resetZoom}
+                                        title="Reset to 100%"
+                                        style={{
+                                          width: "auto",
+                                          height: "auto",
+                                          display: "flex",
+                                          alignItems: "center",
+                                          justifyContent: "center"
+                                        }}
+                                      >
+                                        <MdZoomIn size={20} />
+                                      </button>
+                                      <button
+                                        className="btn btn-outline-primary btn-sm"
+                                        onClick={handleUndo}
+                                        disabled={annotationHistoryIndex <= 0}
+                                        title="Undo (Ctrl+Z)"
+                                        style={{
+                                          width: "auto",
+                                          height: "auto",
+                                          display: "flex",
+                                          alignItems: "center",
+                                          justifyContent: "center"
+                                        }}
+                                      >
+                                        <MdUndo size={20} />
+                                      </button>
+                                      <button
+                                        className="btn btn-outline-primary btn-sm"
+                                        onClick={handleRedo}
+                                        disabled={annotationHistoryIndex >= annotationHistory.length - 1}
+                                        title="Redo (Ctrl+Y)"
+                                        style={{
+                                          width: "auto",
+                                          height: "auto",
+                                          display: "flex",
+                                          alignItems: "center",
+                                          justifyContent: "center"
+                                        }}
+                                      >
+                                        <MdRedo size={20} />
+                                      </button>
+                                      <button
+                                        className="btn btn-outline-primary btn-sm"
+                                        onClick={handleFitToScreen}
+                                        title="Fit to Screen"
+                                        style={{
+                                          width: "auto",
+                                          height: "auto",
+                                          display: "flex",
+                                          alignItems: "center",
+                                          justifyContent: "center"
+                                        }}
+                                      >
+                                        <MdCenterFocusWeak size={20} />
+                                      </button>
+                                    </div>
+                                    <p className="text-black small mt-2">
+                                      Tip: Hold Ctrl + Click and drag to pan the image
+                                    </p>
+                                    {/* Debug info for undo/redo */}
+                                    <div className="text-muted small mt-1">
+                                      History: {annotationHistoryIndex + 1}/{annotationHistory.length}
+                                      {annotationHistory.length > 0 && (
+                                        <span className="ms-2">
+                                          (Undo: {annotationHistoryIndex > 0 ? "✓" : "✗"},
+                                          Redo: {annotationHistoryIndex < annotationHistory.length - 1 ? "✓" : "✗"})
+                                        </span>
+                                      )}
+                                    </div>
+                                  </details>
+                                </>
+                              )}
                             </div>
                           )}
 
@@ -3520,15 +3821,19 @@ const ManualChat = () => {
                                           : "none",
                                         zIndex: 5,
                                         cursor: drawingTool === "eraser" ? getEraserCursor() : "default",
-                                        touchAction: "manipulation",
+                                        touchAction: "none",
                                         userSelect: "none"
                                       }}
                                       onMouseDown={handleShapeMouseDown}
                                       onMouseMove={handleShapeMouseMove}
                                       onMouseUp={handleShapeMouseUp}
+                                      onPointerDown={handleShapeMouseDown}
+                                      onPointerMove={handleShapeMouseMove}
+                                      onPointerUp={handleShapeMouseUp}
                                       onTouchStart={handleShapeMouseDown}
                                       onTouchMove={handleShapeMouseMove}
                                       onTouchEnd={handleShapeMouseUp}
+                                      onTouchCancel={handleShapeMouseUp}
                                     />
 
                                     {/* Text Overlay Canvas */}
@@ -3917,46 +4222,46 @@ const ManualChat = () => {
               ) : (
                 <>
                   <div className="empty-chat-container">
-                  <div className="empty-chat-content">
-                    <div className="empty-chat-icon">
-                      <svg width="120" height="120" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path
-                          d="M12 21C16.9706 21 21 16.9706 21 12C21 7.02944 16.9706 3 12 3C7.02944 3 3 7.02944 3 12C3 13.4876 3.36093 14.891 4 16.1272V21L8.87279 20C9.94066 20.6336 10.9393 21 12 21Z"
-                          stroke="#6B7280"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                      </svg>
+                    <div className="empty-chat-content">
+                      <div className="empty-chat-icon">
+                        <svg width="120" height="120" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                          <path
+                            d="M12 21C16.9706 21 21 16.9706 21 12C21 7.02944 16.9706 3 12 3C7.02944 3 3 7.02944 3 12C3 13.4876 3.36093 14.891 4 16.1272V21L8.87279 20C9.94066 20.6336 10.9393 21 12 21Z"
+                            stroke="#6B7280"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                      </div>
+                      <h3>Group Messages</h3>
+                      <p>Select a group chat to start the conversation</p>
+                      {isMobileView && (
+                        <div
+                          className="col-md-4 chat-list-container flex-column justify-content-center align-items-center bg-light"
+                          style={{ height: "100vh", textAlign: "center", display: 'flex' }}
+                        >
+                          <div
+                            className="spinner-border"
+                            role="status"
+                            style={{
+                              width: "3rem",
+                              height: "3rem",
+                              borderColor: "#eab936",
+                              borderRightColor: "transparent",
+                            }}
+                          >
+                            <span className="visually-hidden">Loading...</span>
+                          </div>
+                          <h5 className="fw-semibold mb-1 mt-4" style={{ color: "#eab936" }}>
+                            Fetching Live Projects...
+                          </h5>
+                          <small className="text-muted">Please wait while we prepare your workspace.</small>
+                        </div>
+                      )}
                     </div>
-                    <h3>Group Messages</h3>
-                    <p>Select a group chat to start the conversation</p>
-                    {isMobileView && (
-                      <div
-                    className="col-md-4 chat-list-container flex-column justify-content-center align-items-center bg-light"
-                    style={{ height: "100vh", textAlign: "center", display: 'flex' }}
-                  >
-                    <div
-                      className="spinner-border"
-                      role="status"
-                      style={{
-                        width: "3rem",
-                        height: "3rem",
-                        borderColor: "#eab936",
-                        borderRightColor: "transparent",
-                      }}
-                    >
-                      <span className="visually-hidden">Loading...</span>
-                    </div>
-                    <h5 className="fw-semibold mb-1 mt-4" style={{ color: "#eab936" }}>
-                      Fetching Live Projects...
-                    </h5>
-                    <small className="text-muted">Please wait while we prepare your workspace.</small>
                   </div>
-                    )}
-                  </div>
-                </div>
-                  
+
                 </>
               )}
             </div>
