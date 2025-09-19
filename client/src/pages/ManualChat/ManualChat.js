@@ -837,23 +837,27 @@ const ManualChat = () => {
       const rect = containerRef.current.getBoundingClientRect()
       const containerWidth = rect.width
       const containerHeight = rect.height
-
-      // Add inner padding so the image doesn't touch edges
-      const padding = 24 // px on each side
-      const usableWidth = Math.max(containerWidth - padding * 2, 0)
-      const usableHeight = Math.max(containerHeight - padding * 2, 0)
-
-      // Compute zoom to fit within padded area (bounded to max 5x)
-      const scaleToFit = Math.min(usableWidth / originalWidth, usableHeight / originalHeight)
-      const newZoom = Math.min(scaleToFit, 5)
-
-      // Center the image within the container
-      const scaledWidth = originalWidth * newZoom
-      const scaledHeight = originalHeight * newZoom
-      const offsetX = Math.round((containerWidth - scaledWidth) / 2)
-      const offsetY = Math.round((containerHeight - scaledHeight) / 2)
-
-      setIsPanning(false)
+      
+      // Determine image orientation
+      const isLandscape = originalWidth > originalHeight
+      
+      let newZoom
+      let offsetX, offsetY
+      
+      if (isLandscape) {
+        // For landscape images, fit to width
+        newZoom = Math.min((containerWidth - 20) / originalWidth, 5)
+        const scaledHeight = originalHeight * newZoom
+        offsetX = 0 // Centered horizontally by default
+        offsetY = (containerHeight - scaledHeight) / 2 // Centered vertically
+      } else {
+        // For portrait images, fit to height
+        newZoom = Math.min((containerHeight - 20) / originalHeight, 5)
+        const scaledWidth = originalWidth * newZoom
+        offsetX = (containerWidth - scaledWidth) / 2 // Centered horizontally
+        offsetY = 0 // Centered vertically by default
+      }
+      
       setZoomLevel(newZoom)
       setPanOffset({ x: offsetX, y: offsetY })
     }
@@ -2164,6 +2168,7 @@ const ManualChat = () => {
       if (!chatId) return
 
       try {
+        setLoading(true)
         const { data } = await axios.get(`${ENDPOINT}api/v1/get-chat-by-id/${chatId}?role=${userData?.role}`)
         const chatData = data.data
 
@@ -2220,6 +2225,8 @@ const ManualChat = () => {
         }
       } catch (error) {
         toast.error("Failed to load group chat details")
+      } finally {
+        setLoading(false)
       }
     },
     [userData, socket, getGroupMembers, buildParticipantsMap, getSenderInfo],
@@ -3150,7 +3157,7 @@ const ManualChat = () => {
                                     <div className="row mb-3">
                                       <div className="col-12">
                                         {activeMobileToolSection === 'drawing' && (
-                                          <div className="border rounded p-2 bg-light">
+                                          <div className="border rounded p-3 bg-light">
                                             <h6 className="text-black mb-3">Drawing Tools</h6>
                                             <div style={{ display: "flex" }} className="flex-wrap gap-2">
                                               <button
@@ -3387,7 +3394,7 @@ const ManualChat = () => {
                                     </h6>
 
                                     {/* First Row */}
-                                    <div style={{ display: "flex" }} className="gap-1 mb-2 flex-wrap">
+                                    <div style={{ display: "flex" }} className="gap-2 mb-2 flex-wrap">
                                       <button
                                         className={`btn ${drawingTool === "brush" ? "btn-info text-dark" : "btn-outline-info"}`}
                                         onClick={() => {

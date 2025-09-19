@@ -4,68 +4,111 @@ const ChatAndPaymentSchema = new mongoose.Schema({
     userId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
+        // required: true
     },
     providerId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Provider',
+        // required: true
     },
     providerIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Provider' }],
     room: {
         type: String,
-        index: true // ✅ single field index
+        // required: true, 
+        index: true
     },
-    amount: Number,
-    service: String,
-    time: String,
-    razorpayOrderId: String,
-    transactionId: String,
+    amount: {
+        type: Number
+    },
+    service: {
+        type: String
+    },
+    time: {
+        type: String
+    },
+    razorpayOrderId: {
+        type: String
+    },
+    transactionId: {
+        type: String
+    },
     PaymentStatus: {
         type: String,
         default: 'pending'
     },
-    newChat: { type: Boolean, default: true },
-    isChatStarted: { type: Boolean, default: false },
+    newChat: {
+        type: Boolean,
+        default: true
+    },
+    isChatStarted: {
+        type: Boolean,
+        default: false
+    },
     messages: [
         {
             sender: { type: String, required: true },
-            text: String,
+            text: { type: String },
             file: {
-                name: String,
-                type: String,
-                content: String, // ⚠️ If storing base64, consider moving to S3/CDN
+                name: { type: String },
+                type: { type: String },
+                content: { type: String },
             },
-            senderName: String,
-            senderRole: String,
+            senderName: { type: String },
+            senderRole: { type: String },
             replyTo: {
-                messageId: String,
-                text: String,
-                senderName: String,
-                senderRole: String,
+                messageId: { type: String },
+                text: { type: String },
+                senderName: { type: String },
+                senderRole: { type: String },
                 isFile: { type: Boolean, default: false },
-                isAudio: { type: Boolean, default: false },
-                timestamp: Date,
+                isAudio: { type: Boolean, default: false }, // New field to indicate audio
+                timestamp: { type: Date },
             },
-            isAudio: { type: Boolean, default: false },
+            isAudio: { type: Boolean, default: false }, // New field at message level
             timestamp: { type: Date, default: Date.now },
         },
     ],
-    deleteByUser: { type: Boolean, default: false },
-    deletedDateByUser: Date,
-    deleteByProvider: { type: Boolean, default: false },
-    deletedDateByProvider: Date,
-    isManualChat: { type: Boolean, default: false },
-    groupName: String,
-    isGroupChatEnded: { type: Boolean, default: false },
-    userChatTempDeleted: { type: Boolean, default: false },
-    providerChatTempDeleted: { type: Boolean, default: false },
+    deleteByUser: {
+        type: Boolean,
+        default: false
+    },
+    deletedDateByUser: {
+        type: Date
+    },
+    deleteByProvider: {
+        type: Boolean,
+        default: false
+    },
+    deletedDateByProvider: {
+        type: Date
+    },
+    isManualChat: {
+        type: Boolean,
+        default: false
+    },
+    groupName: {
+        type: String
+    },
+    isGroupChatEnded: {
+        type: Boolean,
+        default: false
+    },
+    userChatTempDeleted: {
+        type: Boolean,
+        default: false
+    },
+    providerChatTempDeleted: {
+        type: Boolean,
+        default: false
+    },
 }, { timestamps: true })
 
 // ✅ Compound index: room + _id (useful for pagination)
 ChatAndPaymentSchema.index({ room: 1, _id: -1 })
 
 // You can also add this if you query mostly by userId or providerId
-// ChatAndPaymentSchema.index({ userId: 1 })
-// ChatAndPaymentSchema.index({ providerId: 1 })
+ChatAndPaymentSchema.index({ userId: 1 })
+ChatAndPaymentSchema.index({ providerId: 1 })
 
 const ChatAndPayment = mongoose.model('ChatAndPayment', ChatAndPaymentSchema)
 module.exports = ChatAndPayment
