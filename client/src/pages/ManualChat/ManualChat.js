@@ -1014,7 +1014,7 @@ const ManualChat = () => {
 
       } else {
         console.log("Desktop screen detected (offsetY). Before:", offsetY);
-        offsetY += 50;
+        offsetY += 45;
         console.log("After:", offsetY);
       }
 
