@@ -36,13 +36,12 @@ import { useNavigate, useLocation } from "react-router-dom"
 import { Modal, Dropdown } from "react-bootstrap"
 import "bootstrap/dist/css/bootstrap.min.css"
 import CanvasDraw from "react-canvas-draw"
-import { Pencil, Hand } from "lucide-react"
+import { Pencil, Hand, Eye } from "lucide-react"
 import VoiceRecorder from "./VoiceRecorder" // Adjust the path as needed
 
 const ENDPOINT = "https://testapi.dessobuild.com/"
 const MAX_FILE_SIZE = 5 * 1024 * 1024
 
-// Custom hook to get pointer/touch position adjusted for zoom and pan
 const useAdjustedMousePosition = (containerRef, zoomLevel, panOffset) => {
   const getAdjustedMousePosition = (e) => {
     const container = containerRef.current
@@ -50,17 +49,121 @@ const useAdjustedMousePosition = (containerRef, zoomLevel, panOffset) => {
 
     const rect = container.getBoundingClientRect()
     const point = e && e.touches && e.touches[0] ? e.touches[0] : e
+    console.log("Point", point)
+
     const clientX = point && typeof point.clientX === "number" ? point.clientX : 0
     const clientY = point && typeof point.clientY === "number" ? point.clientY : 0
 
-    const x = (clientX - rect.left - panOffset.x) / zoomLevel
-    const y = (clientY - rect.top - panOffset.y) / zoomLevel
+    console.log("ClientX:", clientX, "ClientY:", clientY)
 
+    // Default calculation for desktop or larger screens
+    let x = (clientX - rect.left - panOffset.x) / zoomLevel
+    let y = (clientY - rect.top - panOffset.y) / zoomLevel
+
+    console.log("Initial X:", x, "Initial Y:", y)
+
+    if (window.innerWidth < 361) {
+      // Extra small screens
+      console.log("361 Extra Small Mobile detected. Adjusting position...");
+      console.log("Before Adjustments - X:", x, "Y:", y);
+
+      x -= 0;
+      y -= 240; // push more for very small screens
+
+      console.log("After Adjustments (XS) - X:", x, "Y:", y);
+
+    } else if (window.innerWidth < 376) {
+      // Extra small screens
+      console.log("376 Extra Small Mobile detected. Adjusting position...");
+      console.log("Before Adjustments - X:", x, "Y:", y);
+
+      x -= 0;
+      y -= 140; // push more for very small screens
+
+      console.log("After Adjustments (XS) - X:", x, "Y:", y);
+
+    } else if (window.innerWidth < 391) {
+      // Extra small screens
+      console.log("391 Extra Small Mobile detected. Adjusting position...");
+      console.log("Before Adjustments - X:", x, "Y:", y);
+
+      x -= 0;
+      y -= 400; // push more for very small screens
+
+      console.log("After Adjustments (XS) - X:", x, "Y:", y);
+
+    } else if (window.innerWidth < 415) {
+      // Extra small screens
+      console.log("415 Extra Small Mobile detected. Adjusting position...");
+      console.log("Before Adjustments - X:", x, "Y:", y);
+
+      x -= 0;
+      y -= 500; // push more for very small screens
+
+      console.log("After Adjustments (XS) - X:", x, "Y:", y);
+
+    } else if (window.innerWidth < 431) {
+      // Extra small screens
+      console.log("431 Extra Small Mobile detected. Adjusting position...");
+      console.log("Before Adjustments - X:", x, "Y:", y);
+
+      x -= 0;
+      y -= 620; // push more for very small screens
+
+      console.log("After Adjustments (XS) - X:", x, "Y:", y);
+
+    } else if (window.innerWidth < 468) {
+      // Extra small screens
+      console.log("Extra Small Mobile detected. Adjusting position...");
+      console.log("Before Adjustments - X:", x, "Y:", y);
+
+      x -= 0;
+      y -= 120; // push more for very small screens
+
+      console.log("After Adjustments (XS) - X:", x, "Y:", y);
+
+    } else if (window.innerWidth < 768) {
+      // Regular mobile
+      console.log("Mobile screen detected. Adjusting position...");
+      console.log("Before Adjustments - X:", x, "Y:", y);
+
+      x -= 0;
+      y -= 350; // normal mobile shift
+
+      console.log("After Adjustments (SM) - X:", x, "Y:", y);
+
+    } else if (window.innerWidth >= 768 && window.innerWidth < 1024) {
+      // Tablets
+      console.log("Tablet screen detected. Adjusting position...");
+      console.log("Before Adjustments - X:", x, "Y:", y);
+
+      x -= 0;
+      y -= 200; // smaller shift for tablets
+
+      console.log("After Adjustments (MD) - X:", x, "Y:", y);
+
+    } else {
+      // Desktops
+      console.log("Large screen detected. Adjusting position...");
+      console.log("Before Adjustments - X:", x, "Y:", y);
+
+      x -= 0;
+      y += 50; // maybe move down slightly on big screens
+
+      console.log("After Adjustments (LG) - X:", x, "Y:", y);
+    }
+
+
+
+
+    console.log("Final X:", x, "Final Y:", y)
     return { x, y }
   }
 
   return getAdjustedMousePosition
 }
+
+
 
 const ManualChat = () => {
   // Existing state management
@@ -851,7 +954,71 @@ const ManualChat = () => {
       const scaledWidth = originalWidth * newZoom
       const scaledHeight = originalHeight * newZoom
       const offsetX = Math.round((containerWidth - scaledWidth) / 2)
-      const offsetY = Math.round((containerHeight - scaledHeight) / 2)
+      let offsetY = Math.round((containerHeight - scaledHeight) / 2) - 70
+
+      // if (window.innerWidth < 768) {
+      //   console.log("Mobile screen detected. Adjusting position...")
+
+      //   // Log the calculation before adjustments
+      //   offsetY -= 0 // Adjust this value as needed for mobile
+
+      //   // Log the adjusted values for mobile
+      // } else if (window.innerWidth < 468) {
+      //   offsetY -= 200
+      // }
+      // else if (window.innerWidth > 768) {
+      //   offsetY += 50
+      // } else {
+      //   offsetY -= 0
+      // }
+
+      if (window.innerWidth < 361) {
+        console.log("361 Extra Small Mobile detected (offsetY). Before:", offsetY);
+        offsetY -= 20;
+        console.log("After:", offsetY);
+
+      } else if (window.innerWidth < 376) {
+        console.log("376 Extra Small Mobile detected (offsetY). Before:", offsetY);
+        offsetY -= 0;
+        console.log("After:", offsetY);
+
+      } else if (window.innerWidth < 391) {
+        console.log("391 Extra Small Mobile detected (offsetY). Before:", offsetY);
+        offsetY -= 58;
+        console.log("After:", offsetY);
+
+      } else if (window.innerWidth < 415) {
+        console.log("415 Extra Small Mobile detected (offsetY). Before:", offsetY);
+        offsetY -= 75;
+        console.log("After:", offsetY);
+
+      } else if (window.innerWidth < 431) {
+        console.log("431 Extra Small Mobile detected (offsetY). Before:", offsetY);
+        offsetY -= 75;
+        console.log("After:", offsetY);
+
+      } else if (window.innerWidth < 468) {
+        console.log("468 Small Mobile detected (offsetY). Before:", offsetY);
+        offsetY -= 120;
+        console.log("After:", offsetY);
+
+      } else if (window.innerWidth < 768) {
+        console.log("Mobile screen detected (offsetY). Before:", offsetY);
+        offsetY -= 350;
+        console.log("After:", offsetY);
+
+      } else if (window.innerWidth < 1024) {
+        console.log("Tablet screen detected (offsetY). Before:", offsetY);
+        offsetY -= 200;
+        console.log("After:", offsetY);
+
+      } else {
+        console.log("Desktop screen detected (offsetY). Before:", offsetY);
+        offsetY += 50;
+        console.log("After:", offsetY);
+      }
+
+
 
       setIsPanning(false)
       setZoomLevel(newZoom)
@@ -1050,7 +1217,7 @@ const ManualChat = () => {
         e.stopPropagation()
       }
       if (e.pointerId && e.currentTarget && e.currentTarget.setPointerCapture) {
-        try { e.currentTarget.setPointerCapture(e.pointerId) } catch (_) {}
+        try { e.currentTarget.setPointerCapture(e.pointerId) } catch (_) { }
       }
       const canvas = e.currentTarget
       const rect = canvas.getBoundingClientRect()
@@ -1186,7 +1353,7 @@ const ManualChat = () => {
       e.stopPropagation()
     }
     if (e && e.pointerId && e.currentTarget && e.currentTarget.releasePointerCapture) {
-      try { e.currentTarget.releasePointerCapture(e.pointerId) } catch (_) {}
+      try { e.currentTarget.releasePointerCapture(e.pointerId) } catch (_) { }
     }
     if (isDrawingShape && currentShape) {
       setShapes((prev) => [...prev, currentShape]);
@@ -3019,7 +3186,6 @@ const ManualChat = () => {
                                   }, 100)
                                 }}
                                 className="btn btn-light btn-sm btn-sm align-items-center gap-1"
-                                style={{ display: "flex" }}
                               >
                                 <MdBrush className="fs-6" />
                                 <span className="d-none d-sm-inline">Start Editing</span>
@@ -3028,19 +3194,17 @@ const ManualChat = () => {
                               <button
                                 onClick={handleFitToScreen}
                                 className="btn btn-outline-light btn-sm align-items-center gap-1"
-                                style={{ display: "flex" }}
                               >
                                 <span className="d-none d-sm-inline">Preview Mode</span>
-                                <span className="d-sm-none">👁️</span>
+                                <span className="d-sm-none"><Eye size={26} /></span>
                               </button>
                             ))}
 
                           <button
                             className="btn btn-outline-light btn-sm align-items-center gap-1"
-                            style={{ display: "flex" }}
                             onClick={handleBase64Download}
                           >
-                            <MdAttachment size={isMobileView ? 14 : 18} />
+                            <MdAttachment size={isMobileView ? 26 : 18} />
                             <span className="d-none d-lg-inline">Download</span>
                           </button>
 
@@ -3048,10 +3212,9 @@ const ManualChat = () => {
                             <button
                               onClick={handleSendAnnotation}
                               className="btn btn-success btn-sm align-items-center gap-1"
-                              style={{ display: "flex" }}
                               disabled={loading}
                             >
-                              <MdSend size={isMobileView ? 14 : 18} />
+                              <MdSend size={isMobileView ? 24 : 18} />
                               {loading ? (
                                 <>
                                   <span
