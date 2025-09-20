@@ -3260,10 +3260,10 @@ const ManualChat = () => {
                                       <button
                                         className={`btn w-100 ${activeMobileToolSection === 'drawing' ? 'btn-info text-dark' : 'btn-outline-info'}`}
                                         onClick={() => setActiveMobileToolSection(activeMobileToolSection === 'drawing' ? null : 'drawing')}
-                                        style={{ height: "50px", display: "flex", alignItems: "center", justifyContent: "center" }}
+                                        style={{ height: "35px", display: "flex", alignItems: "center", justifyContent: "center" }}
                                         title="Drawing Tools"
                                       >
-                                        <MdBrush size={20} />
+                                        <MdBrush size={16} />
                                       </button>
                                     </div>
 
@@ -3272,10 +3272,10 @@ const ManualChat = () => {
                                       <button
                                         className={`btn w-100 ${activeMobileToolSection === 'brush' ? 'btn-info text-dark' : 'btn-outline-info'}`}
                                         onClick={() => setActiveMobileToolSection(activeMobileToolSection === 'brush' ? null : 'brush')}
-                                        style={{ height: "50px", display: "flex", alignItems: "center", justifyContent: "center" }}
+                                        style={{ height: "35px", display: "flex", alignItems: "center", justifyContent: "center" }}
                                         title="Brush Settings"
                                       >
-                                        <MdOutlineSettings size={20} />
+                                        <MdOutlineSettings size={18} />
                                       </button>
                                     </div>
 
@@ -3284,10 +3284,10 @@ const ManualChat = () => {
                                       <button
                                         className={`btn w-100 ${activeMobileToolSection === 'zoom' ? 'btn-info text-dark' : 'btn-outline-info'}`}
                                         onClick={() => setActiveMobileToolSection(activeMobileToolSection === 'zoom' ? null : 'zoom')}
-                                        style={{ height: "50px", display: "flex", alignItems: "center", justifyContent: "center" }}
+                                        style={{ height: "35px", display: "flex", alignItems: "center", justifyContent: "center" }}
                                         title="Zoom Controls"
                                       >
-                                        <MdZoomIn size={20} />
+                                        <MdZoomIn size={18} />
                                       </button>
                                     </div>
 
@@ -3297,10 +3297,10 @@ const ManualChat = () => {
                                         <button
                                           className={`btn w-100 ${activeMobileToolSection === 'text' ? 'btn-info text-dark' : 'btn-outline-info'}`}
                                           onClick={() => setActiveMobileToolSection(activeMobileToolSection === 'text' ? null : 'text')}
-                                          style={{ height: "50px", display: "flex", alignItems: "center", justifyContent: "center" }}
+                                          style={{ height: "35px", display: "flex", alignItems: "center", justifyContent: "center" }}
                                           title="Text Settings"
                                         >
-                                          <TfiText size={20} />
+                                          <TfiText size={18} />
                                         </button>
                                       ) : (
                                         <div style={{ height: "50px" }}></div>
@@ -3315,7 +3315,7 @@ const ManualChat = () => {
                                         {activeMobileToolSection === 'drawing' && (
                                           <div className="border rounded p-2 bg-light">
                                             <h6 className="text-black mb-3">Drawing Tools</h6>
-                                            <div style={{ display: "flex" }} className="flex-wrap gap-2">
+                                            <div style={{ display: "flex", gap:'4px' }} className="flex-wrap">
                                               <button
                                                 className={`btn ${drawingTool === "brush" ? "btn-info text-dark" : "btn-outline-info"}`}
                                                 onClick={() => {

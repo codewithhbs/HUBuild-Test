@@ -2583,7 +2583,7 @@
 
   .image-annotation-modal .canvas-area {
     order: 0;
-    height: 72vh !important;
+    height: 65vh !important;
   }
 
   .image-annotation-modal .canvas-wrapper {
