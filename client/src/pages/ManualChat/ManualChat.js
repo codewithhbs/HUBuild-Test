@@ -1101,55 +1101,56 @@ const ManualChat = () => {
   // Shape drawing functions
   const drawShape = useCallback(
     (ctx, shape) => {
-      const scaledStartX = shape.startX * zoomLevel
-      const scaledStartY = shape.startY * zoomLevel
-      const scaledEndX = shape.endX * zoomLevel
-      const scaledEndY = shape.endY * zoomLevel
-      const scaledRadius = shape.radius * zoomLevel
+      // Use original coordinates without scaling - let CSS transform handle the scaling
+      const startX = shape.startX
+      const startY = shape.startY
+      const endX = shape.endX
+      const endY = shape.endY
+      const radius = shape.radius
 
       ctx.strokeStyle = shape.color
-      ctx.lineWidth = scaledRadius
+      ctx.lineWidth = radius
       ctx.lineCap = "round"
       ctx.lineJoin = "round"
 
       switch (shape.type) {
         case "rectangle":
-          ctx.strokeRect(scaledStartX, scaledStartY, scaledEndX - scaledStartX, scaledEndY - scaledStartY)
+          ctx.strokeRect(startX, startY, endX - startX, endY - startY)
           break
         case "circle":
-          const radius = Math.sqrt(Math.pow(scaledEndX - scaledStartX, 2) + Math.pow(scaledEndY - scaledStartY, 2))
+          const circleRadius = Math.sqrt(Math.pow(endX - startX, 2) + Math.pow(endY - startY, 2))
           ctx.beginPath()
-          ctx.arc(scaledStartX, scaledStartY, radius, 0, 2 * Math.PI)
+          ctx.arc(startX, startY, circleRadius, 0, 2 * Math.PI)
           ctx.stroke()
           break
         case "arrow":
-          const headlen = 10 * zoomLevel
-          const dx = scaledEndX - scaledStartX
-          const dy = scaledEndY - scaledStartY
+          const headlen = 10
+          const dx = endX - startX
+          const dy = endY - startY
           const angle = Math.atan2(dy, dx)
           ctx.beginPath()
-          ctx.moveTo(scaledStartX, scaledStartY)
-          ctx.lineTo(scaledEndX, scaledEndY)
+          ctx.moveTo(startX, startY)
+          ctx.lineTo(endX, endY)
           ctx.lineTo(
-            scaledEndX - headlen * Math.cos(angle - Math.PI / 6),
-            scaledEndY - headlen * Math.sin(angle - Math.PI / 6),
+            endX - headlen * Math.cos(angle - Math.PI / 6),
+            endY - headlen * Math.sin(angle - Math.PI / 6),
           )
-          ctx.moveTo(scaledEndX, scaledEndY)
+          ctx.moveTo(endX, endY)
           ctx.lineTo(
-            scaledEndX - headlen * Math.cos(angle + Math.PI / 6),
-            scaledEndY - headlen * Math.sin(angle + Math.PI / 6),
+            endX - headlen * Math.cos(angle + Math.PI / 6),
+            endY - headlen * Math.sin(angle + Math.PI / 6),
           )
           ctx.stroke()
           break
         case "line":
           ctx.beginPath()
-          ctx.moveTo(scaledStartX, scaledStartY)
-          ctx.lineTo(scaledEndX, scaledEndY)
+          ctx.moveTo(startX, startY)
+          ctx.lineTo(endX, endY)
           ctx.stroke()
           break
       }
     },
-    [zoomLevel],
+    [],
   )
 
   const renderShapes = useCallback(() => {
@@ -1222,11 +1223,11 @@ const ManualChat = () => {
       const canvas = e.currentTarget
       const rect = canvas.getBoundingClientRect()
       const pos = getEventPosition(e)
-      const adjusted = getAdjustedMousePosition(e)
-      const logical_x = adjusted.x
-      const logical_y = adjusted.y
       const visual_x = pos.x - rect.left
       const visual_y = pos.y - rect.top
+      // Convert to logical coordinates by dividing by zoom level
+      const logical_x = visual_x / zoomLevel
+      const logical_y = visual_y / zoomLevel
 
       if (drawingTool === "eraser") {
         setIsDrawing(true) // Start continuous erasing
@@ -1242,7 +1243,7 @@ const ManualChat = () => {
         }
 
         // Erase shapes
-        const collidingShapes = checkShapeCollision(logical_x, logical_y, eraserRadius / zoomLevel)
+        const collidingShapes = checkShapeCollision(logical_x, logical_y, eraserRadius)
         if (collidingShapes.length > 0) {
           let topIndex = -1
           let topShape = null
@@ -1269,7 +1270,7 @@ const ManualChat = () => {
           endX: logical_x,
           endY: logical_y,
           color: brushColor,
-          radius: brushRadius / zoomLevel,
+          radius: brushRadius,
         })
       }
     },
@@ -1288,11 +1289,11 @@ const ManualChat = () => {
       const canvas = e.currentTarget
       const rect = canvas.getBoundingClientRect()
       const pos = getEventPosition(e)
-      const adjusted = getAdjustedMousePosition(e)
-      const logical_x = adjusted.x
-      const logical_y = adjusted.y
       const visual_x = pos.x - rect.left
       const visual_y = pos.y - rect.top
+      // Convert to logical coordinates by dividing by zoom level
+      const logical_x = visual_x / zoomLevel
+      const logical_y = visual_y / zoomLevel
 
       if (isDrawingShape && shapeStart) {
         setCurrentShape((prev) => ({
@@ -1314,7 +1315,7 @@ const ManualChat = () => {
         }
 
         // Continuous erasing for shapes
-        const collidingShapes = checkShapeCollision(logical_x, logical_y, eraserRadius / zoomLevel)
+        const collidingShapes = checkShapeCollision(logical_x, logical_y, eraserRadius)
         if (collidingShapes.length > 0) {
           let topIndex = -1
           let topShape = null
@@ -3973,8 +3974,8 @@ const ManualChat = () => {
                                     {/* Shape Canvas */}
                                     <canvas
                                       ref={shapeCanvasRef}
-                                      width={originalWidth * zoomLevel}
-                                      height={originalHeight * zoomLevel}
+                                      width={originalWidth}
+                                      height={originalHeight}
                                       className="position-absolute top-0 start-0 shadow rounded"
                                       style={{
                                         pointerEvents: ["rectangle", "circle", "arrow", "line", "eraser"].includes(
@@ -3985,7 +3986,9 @@ const ManualChat = () => {
                                         zIndex: 5,
                                         cursor: drawingTool === "eraser" ? getEraserCursor() : "default",
                                         touchAction: "none",
-                                        userSelect: "none"
+                                        userSelect: "none",
+                                        transform: `scale(${zoomLevel})`,
+                                        transformOrigin: "top left"
                                       }}
                                       onMouseDown={handleShapeMouseDown}
                                       onMouseMove={handleShapeMouseMove}
